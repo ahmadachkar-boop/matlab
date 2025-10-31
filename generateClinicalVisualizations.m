@@ -1,4 +1,4 @@
-function generateClinicalVisualizations(EEG_clean, clinical, thetaBetaAx, multiBandAx, asymmetryAx)
+function generateClinicalVisualizations(EEG_clean, clinical, thetaBetaAx, multiBandAx, asymmetryAx, bandBarAx)
     % GENERATECLINICALVISUALIZATIONS - Create clinical diagnostic visualizations
     %
     % Inputs:
@@ -7,6 +7,7 @@ function generateClinicalVisualizations(EEG_clean, clinical, thetaBetaAx, multiB
     %   thetaBetaAx    - UIAxes for theta/beta ratio map
     %   multiBandAx    - UIAxes for multi-band power distribution
     %   asymmetryAx    - UIAxes for hemispheric asymmetry analysis
+    %   bandBarAx      - UIAxes for frequency band bar chart
 
     %% 1. THETA/BETA RATIO TOPOGRAPHIC MAP
     try
@@ -390,6 +391,71 @@ function generateClinicalVisualizations(EEG_clean, clinical, thetaBetaAx, multiB
         warning('Failed to create asymmetry map: %s', ME.message);
         cla(asymmetryAx);
         text(asymmetryAx, 0.5, 0.5, 'Asymmetry visualization unavailable', ...
+            'Units', 'normalized', 'HorizontalAlignment', 'center');
+    end
+
+    %% 4. FREQUENCY BAND BAR CHART
+    try
+        cla(bandBarAx);
+        hold(bandBarAx, 'on');
+
+        % Get mean power for each band (averaged across all channels)
+        delta_mean = mean(clinical.band_powers.delta, 'omitnan');
+        theta_mean = mean(clinical.band_powers.theta, 'omitnan');
+        alpha_mean = mean(clinical.band_powers.alpha, 'omitnan');
+        beta_mean = mean(clinical.band_powers.beta, 'omitnan');
+        gamma_mean = mean(clinical.band_powers.gamma, 'omitnan');
+
+        % Calculate relative power (percentage of total)
+        total_power = delta_mean + theta_mean + alpha_mean + beta_mean + gamma_mean;
+
+        delta_rel = (delta_mean / total_power) * 100;
+        theta_rel = (theta_mean / total_power) * 100;
+        alpha_rel = (alpha_mean / total_power) * 100;
+        beta_rel = (beta_mean / total_power) * 100;
+        gamma_rel = (gamma_mean / total_power) * 100;
+
+        % Create bar data
+        band_powers = [delta_rel, theta_rel, alpha_rel, beta_rel, gamma_rel];
+        band_names = {'Delta\n(0.5-4 Hz)', 'Theta\n(4-8 Hz)', 'Alpha\n(8-13 Hz)', ...
+                      'Beta\n(13-30 Hz)', 'Gamma\n(30-50 Hz)'};
+
+        % Create bar chart
+        b = bar(bandBarAx, 1:5, band_powers, 'FaceColor', 'flat');
+
+        % Color each bar with its frequency band color
+        band_colors = [0.9 0.7 0.7;   % Delta - red
+                       0.9 0.9 0.6;   % Theta - yellow
+                       0.6 0.9 0.6;   % Alpha - green
+                       0.7 0.8 0.9;   % Beta - blue
+                       0.9 0.7 0.9];  % Gamma - purple
+        b.CData = band_colors;
+
+        % Add value labels on top of each bar
+        for i = 1:5
+            text(bandBarAx, i, band_powers(i) + 2, sprintf('%.1f%%', band_powers(i)), ...
+                'HorizontalAlignment', 'center', 'FontSize', 10, 'FontWeight', 'bold');
+        end
+
+        % Formatting
+        bandBarAx.XTick = 1:5;
+        bandBarAx.XTickLabel = band_names;
+        bandBarAx.XTickLabelRotation = 0;
+        bandBarAx.YLim = [0 max(band_powers) + 8];
+        bandBarAx.Box = 'off';
+        grid(bandBarAx, 'on');
+        bandBarAx.GridAlpha = 0.3;
+
+        title(bandBarAx, 'Frequency Band Power Comparison (Mean Across All Channels)', ...
+            'FontSize', 12, 'FontWeight', 'bold');
+        ylabel(bandBarAx, 'Relative Power (%)', 'FontSize', 10);
+
+        hold(bandBarAx, 'off');
+
+    catch ME
+        warning('Failed to create band bar chart: %s', ME.message);
+        cla(bandBarAx);
+        text(bandBarAx, 0.5, 0.5, 'Bar chart unavailable', ...
             'Units', 'normalized', 'HorizontalAlignment', 'center');
     end
 

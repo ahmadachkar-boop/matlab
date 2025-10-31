@@ -41,6 +41,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         ThetaBetaAxes           matlab.ui.control.UIAxes
         MultiBandAxes           matlab.ui.control.UIAxes
         AsymmetryAxes           matlab.ui.control.UIAxes
+        BandBarAxes             matlab.ui.control.UIAxes
         MetricsPanel            matlab.ui.container.Panel
         ExportButton            matlab.ui.control.Button
         NewAnalysisButton       matlab.ui.control.Button
@@ -82,6 +83,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             app.UIFigure.Name = 'EEG Quality Analyzer';
             app.UIFigure.Color = [0.95 0.96 0.97];
             app.UIFigure.Scrollable = 'on';
+            app.UIFigure.SizeChangedFcn = @(fig, event) centerPanels(app);
 
             % Create Upload Panel
             createUploadPanel(app);
@@ -92,8 +94,28 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             % Create Results Panel
             createResultsPanel(app);
 
+            % Center panels initially
+            centerPanels(app);
+
             % Make figure visible
             app.UIFigure.Visible = 'on';
+        end
+
+        function centerPanels(app)
+            % Center all panels horizontally in the figure
+            figWidth = app.UIFigure.Position(3);
+            panelWidth = 1200;
+
+            if figWidth > panelWidth
+                xPos = (figWidth - panelWidth) / 2;
+            else
+                xPos = 1;
+            end
+
+            % Center each panel
+            app.UploadPanel.Position(1) = xPos;
+            app.ProcessingPanel.Position(1) = xPos;
+            app.ResultsPanel.Position(1) = xPos;
         end
 
         function createUploadPanel(app)
@@ -324,30 +346,36 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             xlabel(app.SignalAxes, 'Time (s)');
             ylabel(app.SignalAxes, 'Amplitude (µV)');
 
-            % Clinical Visualization Panel (second row)
+            % Clinical Visualization Panel (second row) - Expanded for bar chart
             app.ClinicalPanel = uipanel(app.ResultsPanel);
-            app.ClinicalPanel.Position = [50 210 1100 370];  % Second row below quality panel
+            app.ClinicalPanel.Position = [50 -100 1100 490];  % Taller to fit bar chart
             app.ClinicalPanel.BackgroundColor = [1 1 1];
             app.ClinicalPanel.BorderType = 'line';
             app.ClinicalPanel.Title = 'Clinical Diagnostics';
             app.ClinicalPanel.FontSize = 13;
             app.ClinicalPanel.FontWeight = 'bold';
 
-            % Clinical visualization axes
+            % Clinical visualization axes (topomaps on top row)
             % Theta/Beta Ratio Map
             app.ThetaBetaAxes = uiaxes(app.ClinicalPanel);
-            app.ThetaBetaAxes.Position = [30 50 320 280];
+            app.ThetaBetaAxes.Position = [30 170 320 280];  % Moved up
             title(app.ThetaBetaAxes, 'Theta/Beta Ratio', 'FontSize', 12);
 
             % Multi-Band Power Distribution
             app.MultiBandAxes = uiaxes(app.ClinicalPanel);
-            app.MultiBandAxes.Position = [380 50 320 280];
+            app.MultiBandAxes.Position = [380 170 320 280];  % Moved up
             title(app.MultiBandAxes, 'Multi-Band Power', 'FontSize', 12);
 
             % Hemispheric Asymmetry
             app.AsymmetryAxes = uiaxes(app.ClinicalPanel);
-            app.AsymmetryAxes.Position = [730 50 320 280];
+            app.AsymmetryAxes.Position = [730 170 320 280];  % Moved up
             title(app.AsymmetryAxes, 'Hemispheric Asymmetry', 'FontSize', 12);
+
+            % Frequency Band Bar Chart (bottom of panel)
+            app.BandBarAxes = uiaxes(app.ClinicalPanel);
+            app.BandBarAxes.Position = [30 20 1040 130];  % Full width bar chart
+            title(app.BandBarAxes, 'Frequency Band Power Comparison', 'FontSize', 12);
+            ylabel(app.BandBarAxes, 'Relative Power (%)');
 
             % Metrics Panel (at bottom)
             app.MetricsPanel = uipanel(app.ResultsPanel);
@@ -698,11 +726,11 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                     'HorizontalAlignment', 'center');
             end
 
-            % Generate clinical visualizations (ADHD/ASD biomarkers)
+            % Generate clinical visualizations
             if ~isempty(fieldnames(app.ClinicalMetrics))
                 try
                     generateClinicalVisualizations(app.EEGClean, app.ClinicalMetrics, ...
-                        app.ThetaBetaAxes, app.MultiBandAxes, app.AsymmetryAxes);
+                        app.ThetaBetaAxes, app.MultiBandAxes, app.AsymmetryAxes, app.BandBarAxes);
                 catch ME
                     warning('Clinical visualization generation failed: %s', ME.message);
                     % Fallback to simple placeholder
