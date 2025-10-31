@@ -1,0 +1,620 @@
+clear; clc; close all;
+
+%% ========================================================================
+%% STEP 1: CONFIGURATION
+%% ========================================================================
+fprintf('========================================\n');
+fprintf('STEP 1: CONFIGURATION\n');
+fprintf('========================================\n\n');
+
+% INPUT FILE
+mff_file = '/Users/ahmadachkar/Desktop/_20250807_125727.mff';
+
+% OUTPUT DIRECTORY
+output_dir = '/Users/ahmadachkar/Desktop/';
+
+% PREPROCESSING PARAMETERS
+params.resample_rate = 250;    % Downsample to 250 Hz
+params.hp_cutoff = 0.5;        % High-pass filter (Hz)
+params.lp_cutoff = 50;         % Low-pass filter (Hz)
+params.notch_freq = 60;        % Notch filter (Hz)
+
+% ARTIFACT REJECTION PARAMETERS
+params.chan_kurt_thresh = 7;   % Channel kurtosis threshold (SD) - less aggressive
+% ICLabel thresholds: [min max] probability range to flag components
+% Setting [0.9 1] means: flag if component is 90-100% that artifact type
+params.iclabel_thresholds = struct(...
+    'brain', [0 0], ...           % Keep all brain (no lower limit)
+    'muscle', [0.9 1], ...        % Flag if >90% muscle (jaw, neck tension)
+    'eye', [0.9 1], ...           % Flag if >90% eye (blinks, saccades)
+    'heart', [0.9 1], ...         % Flag if >90% heart (pulse artifact)
+    'line_noise', [0.9 1], ...    % Flag if >90% line noise (60Hz electrical)
+    'chan_noise', [0.9 1], ...    % Flag if >90% channel noise (bad electrode)
+    'other', [0 0]);              % Don't auto-flag "other" (uncertain)
+params.epoch_thresh = 100;     % Epoch rejection threshold (µV)
+params.min_data_length = 60;   % Minimum data length for epoching (seconds)
+params.min_events = 10;        % Minimum events needed for epoching
+
+% MANUAL REVIEW SETTINGS
+params.components_per_batch = 35;    % Show this many components at a time
+params.manual_review_batches = 3;    % How many batches to show (35×3 = 105 components)
+                                     % Set to 'all' to review ALL components in batches
+% Examples:
+%   params.manual_review_batches = 1;     % Review only first 35 (quick)
+%   params.manual_review_batches = 3;     % Review first 105 (recommended)
+%   params.manual_review_batches = 'all'; % Review all components (thorough)
+
+% EPOCHING PARAMETERS
+params.event_type = 'TRSP';    % Event to epoch around
+params.epoch_window = [-0.2 0.8];  % Epoch time window (seconds)
+params.baseline_window = [-200 0]; % Baseline window (milliseconds)
+
+% NOTE: For short recordings (<1 min) or few events, set these higher:
+% params.event_type = '';  % Empty string = skip epoching, keep continuous
+
+fprintf('Configuration complete!\n\n');
+
+%% ========================================================================
+%% STEP 2: INITIALIZE EEGLAB
+%% ========================================================================
+fprintf('========================================\n');
+fprintf('STEP 2: INITIALIZING EEGLAB\n');
+fprintf('========================================\n\n');
+
+try
+    eeglab nogui;
+    fprintf('✓ EEGLAB initialized\n\n');
+catch
+    error('EEGLAB not found! Install EEGLAB and add to MATLAB path.');
+end
+
+%% ========================================================================
+%% STEP 3: IMPORT MFF FILE
+%% ========================================================================
+fprintf('========================================\n');
+fprintf('STEP 3: IMPORTING MFF FILE\n');
+fprintf('========================================\n\n');
+
+if ~exist(mff_file, 'dir')
+    error('MFF file not found: %s', mff_file);
+end
+
+fprintf('Importing: %s\n', mff_file);
+EEG = pop_mffimport(mff_file, {'code'});
+EEG = eeg_checkset(EEG);
+
+fprintf('\n✓ FILE IMPORTED\n');
+fprintf('  Channels: %d\n', EEG.nbchan);
+fprintf('  Sampling rate: %.0f Hz\n', EEG.srate);
+fprintf('  Duration: %.1f seconds (%.1f minutes)\n', EEG.xmax, EEG.xmax/60);
+fprintf('  Events: %d\n', length(EEG.event));
+
+% Warn if data is very short
+if EEG.xmax < 60
+    fprintf('\n⚠ WARNING: Very short recording (%.1f sec)\n', EEG.xmax);
+    fprintf('  Consider analyzing as continuous data (resting state, connectivity)\n');
+    fprintf('  Event-related analysis may not be appropriate\n');
+end
+fprintf('\n');
+
+% Save original
+EEG_original = EEG;
+
+%% ========================================================================
+%% STEP 4: PREPROCESSING
+%% ========================================================================
+fprintf('========================================\n');
+fprintf('STEP 4: PREPROCESSING\n');
+fprintf('========================================\n\n');
+
+% 4.1 Resample
+fprintf('[1/5] Resampling to %d Hz...\n', params.resample_rate);
+EEG = pop_resample(EEG, params.resample_rate);
+fprintf('      ✓ New sampling rate: %.0f Hz\n\n', EEG.srate);
+
+% 4.2 High-pass filter
+fprintf('[2/5] High-pass filtering at %.1f Hz...\n', params.hp_cutoff);
+EEG = pop_eegfiltnew(EEG, 'locutoff', params.hp_cutoff, 'plotfreqz', 0);
+fprintf('      ✓ Complete\n\n');
+
+% 4.3 Low-pass filter
+fprintf('[3/5] Low-pass filtering at %.0f Hz...\n', params.lp_cutoff);
+EEG = pop_eegfiltnew(EEG, 'hicutoff', params.lp_cutoff, 'plotfreqz', 0);
+fprintf('      ✓ Complete\n\n');
+
+% 4.4 Notch filter
+fprintf('[4/5] Notch filtering at %d Hz...\n', params.notch_freq);
+EEG = pop_eegfiltnew(EEG, 'locutoff', params.notch_freq-2, ...
+    'hicutoff', params.notch_freq+2, 'revfilt', 1, 'plotfreqz', 0);
+fprintf('      ✓ Complete\n\n');
+
+% 4.5 Re-reference
+fprintf('[5/5] Re-referencing to average...\n');
+EEG = pop_reref(EEG, []);
+fprintf('      ✓ Complete\n\n');
+
+fprintf('✓ PREPROCESSING COMPLETE\n\n');
+
+%% ========================================================================
+%% STEP 5: BAD CHANNEL REJECTION
+%% ========================================================================
+fprintf('========================================\n');
+fprintf('STEP 5: BAD CHANNEL REJECTION\n');
+fprintf('========================================\n\n');
+
+original_chans = EEG.nbchan;
+
+try
+    fprintf('Detecting bad channels by kurtosis...\n');
+    EEG = pop_rejchan(EEG, 'elec', 1:EEG.nbchan, ...
+        'threshold', params.chan_kurt_thresh, 'norm', 'on', 'measure', 'kurt');
+    
+    removed_chans = original_chans - EEG.nbchan;
+    fprintf('\n✓ BAD CHANNEL REJECTION COMPLETE\n');
+    fprintf('  Channels removed: %d\n', removed_chans);
+    fprintf('  Channels remaining: %d\n\n', EEG.nbchan);
+catch ME
+    fprintf('⚠ Bad channel rejection failed: %s\n', ME.message);
+    fprintf('  Continuing with all channels...\n\n');
+end
+
+%% ========================================================================
+%% STEP 6: RUN ICA
+%% ========================================================================
+fprintf('========================================\n');
+fprintf('STEP 6: INDEPENDENT COMPONENT ANALYSIS\n');
+fprintf('========================================\n\n');
+
+fprintf('Running ICA (this takes 10-15 minutes)...\n');
+fprintf('DO NOT INTERRUPT! Get coffee ☕\n\n');
+
+tic;
+EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1);
+elapsed = toc;
+
+fprintf('\n✓ ICA COMPLETE\n');
+fprintf('  Components: %d\n', size(EEG.icaweights, 1));
+fprintf('  Time: %.1f minutes\n\n', elapsed/60);
+
+EEG = eeg_checkset(EEG);
+
+% Save after ICA (checkpoint)
+[~, name, ~] = fileparts(mff_file);
+checkpoint_file = fullfile(output_dir, [name '_after_ICA.set']);
+pop_saveset(EEG, 'filename', [name '_after_ICA.set'], 'filepath', output_dir);
+fprintf('✓ Checkpoint saved: %s\n\n', checkpoint_file);
+
+%% ========================================================================
+%% STEP 7: ICLABEL CLASSIFICATION
+%% ========================================================================
+fprintf('========================================\n');
+fprintf('STEP 7: ICLABEL COMPONENT CLASSIFICATION\n');
+fprintf('========================================\n\n');
+
+fprintf('Running ICLabel (this may take 5-10 minutes)...\n');
+fprintf('⚠ You may see a warning about uncompiled code - this is normal!\n\n');
+
+EEG = pop_iclabel(EEG, 'default');
+
+fprintf('\n✓ ICLABEL COMPLETE\n\n');
+
+% Display ICLabel summary
+classifications = EEG.etc.ic_classification.ICLabel.classifications;
+[~, max_class] = max(classifications, [], 2);
+class_names = {'Brain', 'Muscle', 'Eye', 'Heart', 'LineNoise', 'ChanNoise', 'Other'};
+
+fprintf('Component Classification Summary:\n');
+for i = 1:7
+    count = sum(max_class == i);
+    fprintf('  %s: %d components\n', class_names{i}, count);
+end
+fprintf('\n');
+
+% Find high-confidence artifacts for ALL artifact types
+fprintf('High-confidence artifacts (>90%%):\n');
+artifact_found = false;
+
+eye_comps = find(classifications(:,3) > 0.9);
+if ~isempty(eye_comps)
+    fprintf('  Eye: %d components - [%s]\n', length(eye_comps), num2str(eye_comps'));
+    artifact_found = true;
+end
+
+muscle_comps = find(classifications(:,2) > 0.9);
+if ~isempty(muscle_comps)
+    fprintf('  Muscle: %d components - [%s]\n', length(muscle_comps), num2str(muscle_comps'));
+    artifact_found = true;
+end
+
+heart_comps = find(classifications(:,4) > 0.9);
+if ~isempty(heart_comps)
+    fprintf('  Heart: %d components - [%s]\n', length(heart_comps), num2str(heart_comps'));
+    artifact_found = true;
+end
+
+line_comps = find(classifications(:,5) > 0.9);
+if ~isempty(line_comps)
+    fprintf('  Line Noise: %d components - [%s]\n', length(line_comps), num2str(line_comps'));
+    artifact_found = true;
+end
+
+chan_comps = find(classifications(:,6) > 0.9);
+if ~isempty(chan_comps)
+    fprintf('  Channel Noise: %d components - [%s]\n', length(chan_comps), num2str(chan_comps'));
+    artifact_found = true;
+end
+
+if ~artifact_found
+    fprintf('  None found! (Very clean data)\n');
+end
+fprintf('\n');
+
+%% ========================================================================
+%% STEP 8: REMOVE BAD COMPONENTS (AUTOMATIC)
+%% ========================================================================
+fprintf('========================================\n');
+fprintf('STEP 8: AUTOMATIC COMPONENT REMOVAL\n');
+fprintf('========================================\n\n');
+
+% Flag components based on ICLabel thresholds
+% Format: [Brain; Muscle; Eye; Heart; LineNoise; ChanNoise; Other]
+fprintf('Flagging components with >90%% confidence in artifact categories...\n');
+fprintf('  Checking: Muscle, Eye, Heart, Line Noise, Channel Noise\n\n');
+
+EEG = pop_icflag(EEG, [...
+    params.iclabel_thresholds.brain; ...
+    params.iclabel_thresholds.muscle; ...
+    params.iclabel_thresholds.eye; ...
+    params.iclabel_thresholds.heart; ...
+    params.iclabel_thresholds.line_noise; ...
+    params.iclabel_thresholds.chan_noise; ...
+    params.iclabel_thresholds.other]);
+
+% Get flagged components
+auto_bad_comps = find(EEG.reject.gcompreject);
+
+if ~isempty(auto_bad_comps)
+    fprintf('Automatically flagged %d components: [%s]\n', ...
+        length(auto_bad_comps), num2str(auto_bad_comps'));
+    
+    % Show what was classified
+    classifications = EEG.etc.ic_classification.ICLabel.classifications;
+    class_names = {'Brain', 'Muscle', 'Eye', 'Heart', 'LineNoise', 'ChanNoise', 'Other'};
+    
+    fprintf('\nDetails:\n');
+    for i = 1:length(auto_bad_comps)
+        comp = auto_bad_comps(i);
+        [max_prob, max_class] = max(classifications(comp,:));
+        fprintf('  Component %d: %s (%.0f%% confidence)\n', ...
+            comp, class_names{max_class}, max_prob*100);
+    end
+    
+    % Remove automatically flagged components
+    EEG = pop_subcomp(EEG, auto_bad_comps, 0);
+    fprintf('\n✓ AUTOMATIC REMOVAL COMPLETE\n\n');
+else
+    fprintf('No components automatically flagged for removal\n\n');
+end
+
+%% ========================================================================
+%% STEP 9: MANUAL COMPONENT REVIEW
+%% ========================================================================
+fprintf('========================================\n');
+fprintf('STEP 9: MANUAL COMPONENT REVIEW\n');
+fprintf('========================================\n\n');
+
+fprintf('Now showing remaining components for manual inspection...\n');
+fprintf('ICLabel is not perfect - you should review for:\n');
+fprintf('  - Missed eye artifacts (frontal topography, <4 Hz)\n');
+fprintf('  - Muscle artifacts (temporal, high frequency)\n');
+fprintf('  - Single-channel noise (localized to one electrode)\n');
+fprintf('  - Heartbeat (rhythmic, ~1 Hz)\n\n');
+
+fprintf('INSTRUCTIONS:\n');
+fprintf('  Components will be shown in BATCHES (easier to review)\n');
+fprintf('  For each batch:\n');
+fprintf('    1. A window opens showing ~35 components at a time\n');
+fprintf('    2. Look at each component:\n');
+fprintf('       - Topographic map (top left) - where is it?\n');
+fprintf('       - Power spectrum (top right) - what frequencies?\n');
+fprintf('       - Time series (bottom) - what pattern?\n');
+fprintf('    3. CLICK on components you want to REMOVE (they turn green)\n');
+fprintf('    4. CLOSE the window to move to next batch\n');
+fprintf('  All your selections will be saved and removed at the end!\n\n');
+
+fprintf('Press any key when ready to review components...\n');
+pause;
+
+% Initialize rejection array if it doesn't exist
+remaining_comps = size(EEG.icaweights, 1);
+if ~isfield(EEG.reject, 'gcompreject') || isempty(EEG.reject.gcompreject)
+    EEG.reject.gcompreject = zeros(1, remaining_comps);
+end
+
+% Determine how many batches to show
+if strcmp(params.manual_review_batches, 'all')
+    n_batches = ceil(remaining_comps / params.components_per_batch);
+else
+    n_batches = min(params.manual_review_batches, ...
+                    ceil(remaining_comps / params.components_per_batch));
+end
+
+total_to_review = min(n_batches * params.components_per_batch, remaining_comps);
+
+fprintf('\nYou will review %d components in %d batch(es) of %d\n', ...
+    total_to_review, n_batches, params.components_per_batch);
+fprintf('(Total remaining: %d components)\n\n', remaining_comps);
+
+% Show components in batches
+manual_bad_comps = [];
+for batch = 1:n_batches
+    % Calculate component range for this batch
+    start_comp = (batch-1) * params.components_per_batch + 1;
+    end_comp = min(batch * params.components_per_batch, remaining_comps);
+    batch_comps = start_comp:end_comp;
+    
+    fprintf('====== BATCH %d of %d ======\n', batch, n_batches);
+    fprintf('Showing components %d-%d...\n\n', start_comp, end_comp);
+    
+    try
+        % Show this batch of components
+        pop_selectcomps(EEG, batch_comps);
+        
+        % Wait for user to close the window
+        fprintf('Review these components, then CLOSE the window to continue\n');
+        fprintf('(Components marked green will be removed)\n');
+        uiwait(gcf);
+        
+        % Get newly marked components from this batch
+        batch_marked = find(EEG.reject.gcompreject(batch_comps));
+        if ~isempty(batch_marked)
+            batch_marked = batch_comps(batch_marked);  % Convert to global indices
+            fprintf('✓ You marked %d components in this batch: [%s]\n\n', ...
+                length(batch_marked), num2str(batch_marked));
+            manual_bad_comps = [manual_bad_comps; batch_marked(:)];
+        else
+            fprintf('✓ No components marked in this batch\n\n');
+        end
+        
+        % Ask if user wants to continue to next batch
+        if batch < n_batches
+            fprintf('Press any key for next batch (or Ctrl+C to stop review)...\n');
+            pause;
+            fprintf('\n');
+        end
+        
+    catch ME
+        fprintf('⚠ Error opening component viewer: %s\n', ME.message);
+        fprintf('Skipping remaining batches...\n\n');
+        break;
+    end
+end
+
+% Remove duplicates (just in case)
+manual_bad_comps = unique(manual_bad_comps);
+
+% Get manually selected components (collected from all batches)
+if ~isempty(manual_bad_comps)
+    fprintf('\n========================================\n');
+    fprintf('MANUAL REVIEW SUMMARY\n');
+    fprintf('========================================\n\n');
+    
+    fprintf('✓ You marked %d components total across all batches: [%s]\n', ...
+        length(manual_bad_comps), num2str(manual_bad_comps'));
+    
+    % Show what they were classified as
+    classifications = EEG.etc.ic_classification.ICLabel.classifications;
+    fprintf('\nICLabel classifications of your selections:\n');
+    for i = 1:length(manual_bad_comps)
+        comp = manual_bad_comps(i);
+        [max_prob, max_class] = max(classifications(comp,:));
+        class_names = {'Brain', 'Muscle', 'Eye', 'Heart', 'LineNoise', 'ChanNoise', 'Other'};
+        fprintf('  Component %d: %s (%.0f%%)\n', ...
+            comp, class_names{max_class}, max_prob*100);
+    end
+    
+    % Remove manually selected components
+    fprintf('\nRemoving manually selected components...\n');
+    EEG = pop_subcomp(EEG, manual_bad_comps, 0);
+    fprintf('✓ MANUAL REMOVAL COMPLETE\n\n');
+else
+    fprintf('\nNo additional components marked for removal\n\n');
+end
+
+% Calculate total components removed
+bad_comps = [auto_bad_comps; manual_bad_comps(:)];
+fprintf('========================================\n');
+fprintf('COMPONENT REMOVAL SUMMARY\n');
+fprintf('========================================\n');
+fprintf('TOTAL COMPONENTS REMOVED: %d\n', length(bad_comps));
+fprintf('  Automatic: %d\n', length(auto_bad_comps));
+fprintf('  Manual: %d\n', length(manual_bad_comps));
+fprintf('  Remaining: %d\n\n', size(EEG.icaweights, 1));
+
+%% ========================================================================
+%% STEP 10: EPOCH DATA
+%% ========================================================================
+fprintf('========================================\n');
+fprintf('STEP 10: EPOCHING DATA\n');
+fprintf('========================================\n\n');
+
+% Check if data is long enough and has enough events
+event_types = {EEG.event.type};
+
+if ~isempty(params.event_type)
+    num_target_events = sum(strcmp(event_types, params.event_type));
+    fprintf('Target event type: "%s"\n', params.event_type);
+    fprintf('Number of "%s" events: %d\n', params.event_type, num_target_events);
+else
+    num_target_events = 0;
+    fprintf('Target event type: (none - will keep data continuous)\n');
+end
+
+fprintf('Data duration: %.1f seconds\n\n', EEG.xmax);
+
+% Determine if we should epoch
+should_epoch = true;
+skip_reason = '';
+
+if isempty(params.event_type)
+    should_epoch = false;
+    skip_reason = 'Event type set to empty (user requested continuous data)';
+elseif EEG.xmax < params.min_data_length
+    should_epoch = false;
+    skip_reason = sprintf('Data too short (%.1f sec < %d sec minimum)', ...
+        EEG.xmax, params.min_data_length);
+elseif num_target_events < params.min_events
+    should_epoch = false;
+    skip_reason = sprintf('Too few events (%d < %d minimum)', ...
+        num_target_events, params.min_events);
+elseif num_target_events == 0
+    should_epoch = false;
+    skip_reason = sprintf('Event type "%s" not found!', params.event_type);
+end
+
+if ~should_epoch
+    fprintf('⚠ SKIPPING EPOCHING: %s\n', skip_reason);
+    fprintf('\nAvailable event types:\n');
+    unique_events = unique(event_types);
+    for i = 1:length(unique_events)
+        count = sum(strcmp(event_types, unique_events{i}));
+        fprintf('  - "%s": %d occurrences\n', unique_events{i}, count);
+    end
+    fprintf('\n✓ Data will remain CONTINUOUS\n');
+    fprintf('  This is appropriate for:\n');
+    fprintf('  - Resting state analysis\n');
+    fprintf('  - Connectivity analysis\n');
+    fprintf('  - Power spectral analysis\n\n');
+else
+    fprintf('Epoching around "%s" events...\n', params.event_type);
+    fprintf('  Time window: [%.1f %.1f] seconds\n', params.epoch_window);
+    
+    try
+        % Epoch
+        EEG_epoched = pop_epoch(EEG, {params.event_type}, params.epoch_window, ...
+            'newname', 'epoched', 'epochinfo', 'yes');
+        
+        if EEG_epoched.trials == 0
+            fprintf('\n⚠ WARNING: No valid epochs created!\n');
+            fprintf('  Events may be at data boundaries\n');
+            fprintf('  Keeping data as CONTINUOUS\n\n');
+        else
+            EEG = EEG_epoched;
+            
+            % Baseline correction
+            EEG = pop_rmbase(EEG, params.baseline_window);
+            
+            fprintf('\n✓ EPOCHING COMPLETE\n');
+            fprintf('  Total epochs: %d\n\n', EEG.trials);
+            
+            %% ================================================================
+            %% STEP 11: EPOCH REJECTION
+            %% ================================================================
+            fprintf('========================================\n');
+            fprintf('STEP 11: EPOCH REJECTION\n');
+            fprintf('========================================\n\n');
+            
+            original_trials = EEG.trials;
+            
+            % Reject by amplitude threshold
+            fprintf('Rejecting epochs by amplitude (threshold: ±%d µV)...\n', params.epoch_thresh);
+            EEG = pop_eegthresh(EEG, 1, 1:EEG.nbchan, -params.epoch_thresh, ...
+                params.epoch_thresh, params.epoch_window(1), params.epoch_window(2), 0, 1);
+            
+            % Apply rejections
+            EEG = eeg_rejsuperpose(EEG, 1, 1, 1, 1, 1, 1, 1, 1);
+            
+            rejected_trials = original_trials - EEG.trials;
+            fprintf('\n✓ EPOCH REJECTION COMPLETE\n');
+            fprintf('  Epochs rejected: %d (%.1f%%)\n', rejected_trials, ...
+                100*rejected_trials/original_trials);
+            fprintf('  Epochs remaining: %d\n\n', EEG.trials);
+        end
+    catch ME
+        fprintf('\n⚠ EPOCHING FAILED: %s\n', ME.message);
+        fprintf('  Keeping data as CONTINUOUS\n\n');
+    end
+end
+
+%% ========================================================================
+%% STEP 12: SAVE FINAL DATA
+%% ========================================================================
+fprintf('========================================\n');
+fprintf('STEP 12: SAVING FINAL DATA\n');
+fprintf('========================================\n\n');
+
+[~, name, ~] = fileparts(mff_file);
+final_file = fullfile(output_dir, [name '_FINAL_CLEANED.set']);
+
+EEG = pop_saveset(EEG, 'filename', [name '_FINAL_CLEANED.set'], ...
+    'filepath', output_dir);
+
+fprintf('✓ FINAL DATA SAVED\n');
+fprintf('  File: %s\n\n', final_file);
+
+%% ========================================================================
+%% STEP 13: SUMMARY
+%% ========================================================================
+fprintf('========================================\n');
+fprintf('PIPELINE COMPLETE! 🎉\n');
+fprintf('========================================\n\n');
+
+fprintf('SUMMARY:\n');
+fprintf('  Original channels: %d → Final: %d (%.0f%% retained)\n', ...
+    EEG_original.nbchan, EEG.nbchan, 100*EEG.nbchan/EEG_original.nbchan);
+fprintf('  Original sampling rate: %.0f Hz → Final: %.0f Hz\n', ...
+    EEG_original.srate, EEG.srate);
+fprintf('  ICA components removed: %d\n', length(bad_comps));
+if isfield(EEG, 'trials') && EEG.trials > 0
+    fprintf('  Final epochs: %d\n', EEG.trials);
+    data_type = 'epoched';
+else
+    fprintf('  Data type: Continuous (not epoched)\n');
+    data_type = 'continuous';
+end
+fprintf('\n');
+
+fprintf('OUTPUT FILES:\n');
+fprintf('  1. Checkpoint: %s\n', checkpoint_file);
+fprintf('  2. Final: %s\n\n', final_file);
+
+fprintf('NEXT STEPS:\n');
+fprintf('  1. Load data: EEG = pop_loadset(''%s'');\n', final_file);
+fprintf('  2. Visual inspection: pop_eegplot(EEG, 1, 1, 1);\n');
+
+if strcmp(data_type, 'epoched')
+    fprintf('  3. Plot ERPs: pop_timtopo(EEG, [%.0f %.0f]);\n', ...
+        params.epoch_window(1)*1000, params.epoch_window(2)*1000);
+    fprintf('  4. Compute averaged ERPs\n');
+else
+    fprintf('  3. For continuous data analysis:\n');
+    fprintf('     - Power spectral density: spectopo(EEG.data, 0, EEG.srate);\n');
+    fprintf('     - Connectivity analysis\n');
+    fprintf('     - Resting state analysis\n');
+end
+fprintf('\n');
+
+fprintf('DATA QUALITY NOTES:\n');
+removed_chan_pct = 100*(1 - EEG.nbchan/EEG_original.nbchan);
+if removed_chan_pct > 15
+    fprintf('  ⚠ HIGH channel rejection (%.0f%%) - consider:\n', removed_chan_pct);
+    fprintf('    - Increasing chan_kurt_thresh parameter\n');
+    fprintf('    - Visual inspection of removed channels\n');
+elseif removed_chan_pct > 5
+    fprintf('  ⚠ Moderate channel rejection (%.0f%%)\n', removed_chan_pct);
+else
+    fprintf('  ✓ Good channel retention (%.0f%% removed)\n', removed_chan_pct);
+end
+
+if length(bad_comps) < 5
+    fprintf('  ✓ Clean data (only %d artifact components)\n', length(bad_comps));
+elseif length(bad_comps) < 10
+    fprintf('  ✓ Acceptable artifact level (%d components removed)\n', length(bad_comps));
+else
+    fprintf('  ⚠ High artifacts (%d components removed)\n', length(bad_comps));
+end
+
+fprintf('\n');
+fprintf('========================================\n');
+fprintf('ALL DONE! ✨\n');
+fprintf('========================================\n');
