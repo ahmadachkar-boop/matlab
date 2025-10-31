@@ -103,9 +103,9 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             app.UploadPanel.BackgroundColor = [0.95 0.96 0.97];
             app.UploadPanel.BorderType = 'none';
 
-            % Title
+            % Title (centered in taller window)
             titleLabel = uilabel(app.UploadPanel);
-            titleLabel.Position = [300 720 600 50];
+            titleLabel.Position = [300 920 600 50];  % Moved up 200px
             titleLabel.Text = 'EEG Quality Analyzer';
             titleLabel.FontSize = 32;
             titleLabel.FontWeight = 'bold';
@@ -114,7 +114,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Subtitle
             subtitleLabel = uilabel(app.UploadPanel);
-            subtitleLabel.Position = [300 680 600 30];
+            subtitleLabel.Position = [300 880 600 30];  % Moved up 200px
             subtitleLabel.Text = 'Upload your EEG file to begin automated quality assessment';
             subtitleLabel.FontSize = 14;
             subtitleLabel.FontColor = [0.4 0.5 0.6];
@@ -122,7 +122,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Drop Zone Panel
             app.DropZonePanel = uipanel(app.UploadPanel);
-            app.DropZonePanel.Position = [300 400 600 250];
+            app.DropZonePanel.Position = [300 600 600 250];  % Moved up 200px
             app.DropZonePanel.BackgroundColor = [1 1 1];
             app.DropZonePanel.BorderType = 'line';
             app.DropZonePanel.BorderWidth = 2;
@@ -147,7 +147,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % File Info Panel (hidden initially)
             app.FileInfoPanel = uipanel(app.UploadPanel);
-            app.FileInfoPanel.Position = [300 200 600 150];
+            app.FileInfoPanel.Position = [300 400 600 150];  % Moved up 200px
             app.FileInfoPanel.BackgroundColor = [0.95 0.98 1];
             app.FileInfoPanel.BorderType = 'line';
             app.FileInfoPanel.Visible = 'off';
@@ -186,7 +186,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Title
             app.ProcessingLabel = uilabel(app.ProcessingPanel);
-            app.ProcessingLabel.Position = [300 680 600 50];
+            app.ProcessingLabel.Position = [300 880 600 50];  % Moved up 200px
             app.ProcessingLabel.Text = 'Processing EEG Data';
             app.ProcessingLabel.FontSize = 28;
             app.ProcessingLabel.FontWeight = 'bold';
@@ -195,14 +195,14 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Animated Icon
             app.AnimatedIcon = uilabel(app.ProcessingPanel);
-            app.AnimatedIcon.Position = [550 580 100 80];
+            app.AnimatedIcon.Position = [550 780 100 80];  % Moved up 200px
             app.AnimatedIcon.Text = '🧠';
             app.AnimatedIcon.FontSize = 64;
             app.AnimatedIcon.HorizontalAlignment = 'center';
 
             % Stage Label
             app.StageLabel = uilabel(app.ProcessingPanel);
-            app.StageLabel.Position = [300 520 600 30];
+            app.StageLabel.Position = [300 720 600 30];  % Moved up 200px
             app.StageLabel.Text = 'Initializing...';
             app.StageLabel.FontSize = 16;
             app.StageLabel.FontColor = [0.3 0.4 0.5];
@@ -210,7 +210,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Progress Bar (using UIAxes)
             app.ProgressBar = uiaxes(app.ProcessingPanel);
-            app.ProgressBar.Position = [300 450 600 40];
+            app.ProgressBar.Position = [300 650 600 40];  % Moved up 200px
             app.ProgressBar.XLim = [0 100];
             app.ProgressBar.YLim = [0 1];
             app.ProgressBar.XTick = [];
@@ -226,7 +226,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Progress Percentage
             app.ProgressText = uilabel(app.ProcessingPanel);
-            app.ProgressText.Position = [300 410 600 25];
+            app.ProgressText.Position = [300 610 600 25];  % Moved up 200px
             app.ProgressText.Text = '0%';
             app.ProgressText.FontSize = 14;
             app.ProgressText.FontWeight = 'bold';
@@ -235,7 +235,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Processing stages info
             stagesPanel = uipanel(app.ProcessingPanel);
-            stagesPanel.Position = [350 200 500 180];
+            stagesPanel.Position = [350 400 500 180];  % Moved up 200px
             stagesPanel.BackgroundColor = [1 1 1];
             stagesPanel.BorderType = 'line';
 
