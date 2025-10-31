@@ -76,12 +76,12 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
     methods (Access = private)
 
         function createComponents(app)
-            % Create UIFigure
+            % Create UIFigure - Fullscreen
             app.UIFigure = uifigure('Visible', 'off');
-            app.UIFigure.Position = [50 50 1200 1200];  % Increased height for clinical visualizations
+            app.UIFigure.WindowState = 'maximized';
             app.UIFigure.Name = 'EEG Quality Analyzer';
-            app.UIFigure.Resize = 'off';
             app.UIFigure.Color = [0.95 0.96 0.97];
+            app.UIFigure.Scrollable = 'on';
 
             % Create Upload Panel
             createUploadPanel(app);
@@ -324,12 +324,12 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             xlabel(app.SignalAxes, 'Time (s)');
             ylabel(app.SignalAxes, 'Amplitude (µV)');
 
-            % Clinical Visualization Panel (ADHD/ASD Diagnostics - second row)
+            % Clinical Visualization Panel (second row)
             app.ClinicalPanel = uipanel(app.ResultsPanel);
             app.ClinicalPanel.Position = [50 210 1100 370];  % Second row below quality panel
             app.ClinicalPanel.BackgroundColor = [1 1 1];
             app.ClinicalPanel.BorderType = 'line';
-            app.ClinicalPanel.Title = 'Clinical Diagnostics (ADHD/ASD Biomarkers)';
+            app.ClinicalPanel.Title = 'Clinical Diagnostics';
             app.ClinicalPanel.FontSize = 13;
             app.ClinicalPanel.FontWeight = 'bold';
 

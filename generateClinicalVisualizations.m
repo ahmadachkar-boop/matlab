@@ -1,5 +1,5 @@
 function generateClinicalVisualizations(EEG_clean, clinical, thetaBetaAx, multiBandAx, asymmetryAx)
-    % GENERATECLINICALVISUALIZATIONS - Create ADHD/ASD diagnostic visualizations
+    % GENERATECLINICALVISUALIZATIONS - Create clinical diagnostic visualizations
     %
     % Inputs:
     %   EEG_clean      - Cleaned EEG structure
@@ -8,7 +8,7 @@ function generateClinicalVisualizations(EEG_clean, clinical, thetaBetaAx, multiB
     %   multiBandAx    - UIAxes for multi-band power distribution
     %   asymmetryAx    - UIAxes for hemispheric asymmetry analysis
 
-    %% 1. THETA/BETA RATIO TOPOGRAPHIC MAP (ADHD Biomarker)
+    %% 1. THETA/BETA RATIO TOPOGRAPHIC MAP
     try
         cla(thetaBetaAx);
         hold(thetaBetaAx, 'on');
@@ -103,13 +103,13 @@ function generateClinicalVisualizations(EEG_clean, clinical, thetaBetaAx, multiB
                 hold(thetaBetaAx, 'on');
 
                 % Display Fz value and status
-                if isfield(clinical, 'fz_theta_beta')
+                if isfield(clinical, 'fz_theta_beta') && isfield(clinical, 'clinical_markers_a')
                     fz_value = clinical.fz_theta_beta;
-                    status = clinical.adhd_markers.theta_beta_status;
+                    status = clinical.clinical_markers_a.theta_beta_status;
 
                     % Traffic light indicator
                     if strcmp(status, 'HIGH')
-                        traffic_light = '🔴 HIGH RISK';
+                        traffic_light = '🔴 HIGH';
                         light_color = [0.9 0.2 0.2];
                     elseif strcmp(status, 'ELEVATED')
                         traffic_light = '🟡 ELEVATED';
@@ -134,7 +134,7 @@ function generateClinicalVisualizations(EEG_clean, clinical, thetaBetaAx, multiB
         thetaBetaAx.XTick = [];
         thetaBetaAx.YTick = [];
         thetaBetaAx.Box = 'off';
-        title(thetaBetaAx, 'Theta/Beta Ratio (ADHD Biomarker)', 'FontSize', 12, 'FontWeight', 'bold');
+        title(thetaBetaAx, 'Theta/Beta Ratio', 'FontSize', 12, 'FontWeight', 'bold');
 
         hold(thetaBetaAx, 'off');
 
@@ -267,7 +267,7 @@ function generateClinicalVisualizations(EEG_clean, clinical, thetaBetaAx, multiB
         [elec_x, elec_y, ~] = getElectrodePositions(EEG_clean);
 
         if length(elec_x) >= 3
-            % Focus on alpha asymmetry (most clinically relevant for ASD)
+            % Focus on alpha asymmetry (most clinically relevant)
             alpha_asym = clinical.hemispheric_asymmetry.alpha;
 
             % Compute asymmetry for each electrode

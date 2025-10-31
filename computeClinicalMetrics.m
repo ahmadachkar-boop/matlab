@@ -1,5 +1,5 @@
 function clinical = computeClinicalMetrics(EEG_clean)
-    % COMPUTECLINICALMETRICS - Compute ADHD/ASD diagnostic markers from EEG
+    % COMPUTECLINICALMETRICS - Compute clinical diagnostic markers from EEG
     %
     % Input:
     %   EEG_clean - Cleaned EEG structure
@@ -10,8 +10,8 @@ function clinical = computeClinicalMetrics(EEG_clean)
     %     .band_powers - Power in each frequency band per channel
     %     .frontal_theta_beta - Average theta/beta at frontal electrodes
     %     .hemispheric_asymmetry - Left vs right hemisphere metrics
-    %     .adhd_markers - ADHD-specific indicators
-    %     .asd_markers - ASD-specific indicators
+    %     .clinical_markers_a - Clinical indicators (type A)
+    %     .clinical_markers_b - Clinical indicators (type B)
 
     clinical = struct();
 
@@ -76,7 +76,7 @@ function clinical = computeClinicalMetrics(EEG_clean)
         'beta', beta_power, ...
         'gamma', gamma_power);
 
-    %% 2. COMPUTE THETA/BETA RATIO (ADHD BIOMARKER)
+    %% 2. COMPUTE THETA/BETA RATIO
     fprintf('  Computing theta/beta ratios...\n');
 
     % Avoid division by zero
@@ -86,7 +86,7 @@ function clinical = computeClinicalMetrics(EEG_clean)
     theta_beta_ratio = theta_power ./ beta_power_safe;
     clinical.theta_beta_ratio = theta_beta_ratio;
 
-    %% 3. FRONTAL ELECTRODE ANALYSIS (CRITICAL FOR ADHD)
+    %% 3. FRONTAL ELECTRODE ANALYSIS
     fprintf('  Analyzing frontal regions...\n');
 
     % Try to find frontal electrodes by name
@@ -198,23 +198,23 @@ function clinical = computeClinicalMetrics(EEG_clean)
             'asymmetry_index', asymmetry);
     end
 
-    %% 5. ADHD DIAGNOSTIC MARKERS
-    fprintf('  Evaluating ADHD markers...\n');
+    %% 5. CLINICAL DIAGNOSTIC MARKERS (TYPE A)
+    fprintf('  Evaluating clinical markers (type A)...\n');
 
     % Threshold values from literature (Snyder & Hall, 2006; Arns et al., 2013)
-    adhd_threshold_high = 3.0;  % >3.0 suggests ADHD
-    adhd_threshold_low = 2.5;   % <2.5 normal
+    threshold_high = 3.0;  % >3.0 indicates elevated
+    threshold_low = 2.5;   % <2.5 normal
 
     % Frontal theta/beta evaluation
-    if clinical.fz_theta_beta > adhd_threshold_high
-        adhd_frontal_status = 'HIGH';
-        adhd_frontal_flag = true;
-    elseif clinical.fz_theta_beta > adhd_threshold_low
-        adhd_frontal_status = 'ELEVATED';
-        adhd_frontal_flag = true;
+    if clinical.fz_theta_beta > threshold_high
+        frontal_status = 'HIGH';
+        frontal_flag = true;
+    elseif clinical.fz_theta_beta > threshold_low
+        frontal_status = 'ELEVATED';
+        frontal_flag = true;
     else
-        adhd_frontal_status = 'NORMAL';
-        adhd_frontal_flag = false;
+        frontal_status = 'NORMAL';
+        frontal_flag = false;
     end
 
     % Frontal theta power (relative to other bands)
@@ -245,10 +245,10 @@ function clinical = computeClinicalMetrics(EEG_clean)
         beta_deficit_flag = false;
     end
 
-    clinical.adhd_markers = struct(...
+    clinical.clinical_markers_a = struct(...
         'theta_beta_ratio', clinical.fz_theta_beta, ...
-        'theta_beta_status', adhd_frontal_status, ...
-        'theta_beta_flag', adhd_frontal_flag, ...
+        'theta_beta_status', frontal_status, ...
+        'theta_beta_flag', frontal_flag, ...
         'frontal_theta_relative', frontal_theta_relative * 100, ...
         'theta_excess_status', theta_excess_status, ...
         'theta_excess_flag', theta_excess_flag, ...
@@ -256,24 +256,24 @@ function clinical = computeClinicalMetrics(EEG_clean)
         'beta_deficit_status', beta_deficit_status, ...
         'beta_deficit_flag', beta_deficit_flag);
 
-    % Overall ADHD pattern likelihood (0-100%)
-    adhd_score = 0;
-    if adhd_frontal_flag
-        adhd_score = adhd_score + 40;  % Theta/beta ratio most important
+    % Overall pattern likelihood (0-100%)
+    pattern_score = 0;
+    if frontal_flag
+        pattern_score = pattern_score + 40;  % Theta/beta ratio most important
     end
     if theta_excess_flag
-        adhd_score = adhd_score + 30;
+        pattern_score = pattern_score + 30;
     end
     if beta_deficit_flag
-        adhd_score = adhd_score + 30;
+        pattern_score = pattern_score + 30;
     end
 
-    clinical.adhd_markers.adhd_pattern_likelihood = min(100, adhd_score);
+    clinical.clinical_markers_a.pattern_likelihood = min(100, pattern_score);
 
-    fprintf('    ADHD Pattern Likelihood: %d%%\n', clinical.adhd_markers.adhd_pattern_likelihood);
+    fprintf('    Type A Pattern Likelihood: %d%%\n', clinical.clinical_markers_a.pattern_likelihood);
 
-    %% 6. ASD DIAGNOSTIC MARKERS
-    fprintf('  Evaluating ASD markers...\n');
+    %% 6. CLINICAL DIAGNOSTIC MARKERS (TYPE B)
+    fprintf('  Evaluating clinical markers (type B)...\n');
 
     % Excess gamma (Wang et al., 2013)
     mean_gamma = mean(gamma_power, 'omitnan');
@@ -302,7 +302,7 @@ function clinical = computeClinicalMetrics(EEG_clean)
         coherence_flag = false;
     end
 
-    clinical.asd_markers = struct(...
+    clinical.clinical_markers_b = struct(...
         'gamma_power_relative', gamma_relative * 100, ...
         'gamma_status', gamma_status, ...
         'gamma_flag', gamma_flag, ...
@@ -310,18 +310,18 @@ function clinical = computeClinicalMetrics(EEG_clean)
         'coherence_status', coherence_status, ...
         'coherence_flag', coherence_flag);
 
-    % Overall ASD pattern likelihood
-    asd_score = 0;
+    % Overall type B pattern likelihood
+    pattern_score_b = 0;
     if gamma_flag
-        asd_score = asd_score + 50;
+        pattern_score_b = pattern_score_b + 50;
     end
     if coherence_flag
-        asd_score = asd_score + 50;
+        pattern_score_b = pattern_score_b + 50;
     end
 
-    clinical.asd_markers.asd_pattern_likelihood = min(100, asd_score);
+    clinical.clinical_markers_b.pattern_likelihood = min(100, pattern_score_b);
 
-    fprintf('    ASD Pattern Likelihood: %d%%\n', clinical.asd_markers.asd_pattern_likelihood);
+    fprintf('    Type B Pattern Likelihood: %d%%\n', clinical.clinical_markers_b.pattern_likelihood);
 
     fprintf('✓ Clinical metrics computed\n\n');
 end
