@@ -10,7 +10,7 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
 
     %% 1. TOPOGRAPHIC POWER MAP
     try
-        % Create topographic representation with REAL alpha power
+        % Create interpolated topographic map with REAL alpha power
         cla(topoAx);
         hold(topoAx, 'on');
 
@@ -37,37 +37,14 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
         % Convert to microvolts squared
         alpha_power = alpha_power * 1e12;
 
-        % Draw head outline
-        theta = linspace(0, 2*pi, 100);
-        x_head = cos(theta);
-        y_head = sin(theta);
-        plot(topoAx, x_head, y_head, 'k', 'LineWidth', 2);
+        % Get electrode positions
+        elec_x = [];
+        elec_y = [];
+        valid_power = [];
 
-        % Nose
-        nose_x = [0.15, 0, -0.15];
-        nose_y = [1, 1.15, 1];
-        plot(topoAx, nose_x, nose_y, 'k', 'LineWidth', 2);
-
-        % Ears
-        ear_theta = linspace(-pi/2, pi/2, 20);
-        ear_r = 0.1;
-        % Left ear
-        ear_x_left = -1 + ear_r * cos(ear_theta + pi);
-        ear_y_left = ear_r * sin(ear_theta + pi);
-        plot(topoAx, ear_x_left, ear_y_left, 'k', 'LineWidth', 2);
-        % Right ear
-        ear_x_right = 1 + ear_r * cos(ear_theta);
-        ear_y_right = ear_r * sin(ear_theta);
-        plot(topoAx, ear_x_right, ear_y_right, 'k', 'LineWidth', 2);
-
-        % Get REAL electrode positions from EEG structure
+        % Try to get REAL electrode positions from EEG structure
         if isfield(EEG_clean, 'chanlocs') && ~isempty(EEG_clean.chanlocs) && ...
            isfield(EEG_clean.chanlocs, 'X') && isfield(EEG_clean.chanlocs, 'Y')
-
-            % Extract real electrode coordinates
-            elec_x = [];
-            elec_y = [];
-            valid_power = [];
 
             for ch = 1:EEG_clean.nbchan
                 if ~isempty(EEG_clean.chanlocs(ch).X) && ~isempty(EEG_clean.chanlocs(ch).Y) && ...
@@ -83,8 +60,8 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
                         radius = sqrt(X^2 + Y^2 + Z^2);
                         if radius > 0
                             % Normalize and project
-                            proj_x = Y / radius;  % Note: Y maps to x in top view
-                            proj_y = X / radius;  % X maps to y in top view
+                            proj_x = Y / radius;
+                            proj_y = X / radius;
 
                             elec_x(end+1) = proj_x;
                             elec_y(end+1) = proj_y;
@@ -93,69 +70,110 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
                     end
                 end
             end
-
-            % If we got valid positions, use them
-            if length(elec_x) >= 3
-                % Plot REAL alpha power at REAL electrode positions
-                scatter(topoAx, elec_x, elec_y, 200, valid_power, 'filled', ...
-                    'MarkerEdgeColor', 'k', 'LineWidth', 1);
-
-                % Add text note that this is real data
-                text(topoAx, 0, -1.35, 'Real Alpha Power Distribution', ...
-                    'HorizontalAlignment', 'center', 'FontSize', 9, ...
-                    'Color', [0.2 0.6 0.2], 'FontWeight', 'bold');
-            else
-                % Fallback: use generic positions but with real power values
-                warning('Channel locations incomplete, using approximate positions with real power values');
-
-                n_elecs = length(alpha_power);
-                elec_angles = linspace(0, 2*pi, n_elecs+1);
-                elec_angles = elec_angles(1:end-1);
-                elec_radii = 0.5 * ones(1, n_elecs);
-
-                elec_x = elec_radii .* cos(elec_angles);
-                elec_y = elec_radii .* sin(elec_angles);
-
-                % Use REAL power values (not simulated)
-                valid_power = alpha_power;
-                valid_power(isnan(valid_power)) = mean(valid_power(~isnan(valid_power)));
-
-                scatter(topoAx, elec_x, elec_y, 200, valid_power, 'filled', ...
-                    'MarkerEdgeColor', 'k', 'LineWidth', 1);
-
-                text(topoAx, 0, -1.35, 'Real Alpha Power (Approx. Positions)', ...
-                    'HorizontalAlignment', 'center', 'FontSize', 9, ...
-                    'Color', [0.8 0.6 0.2], 'FontWeight', 'bold');
-            end
-
+            use_real_positions = length(elec_x) >= 3;
         else
-            % No channel location info at all - use generic positions with real power
-            warning('No channel locations available, using generic positions with real power values');
+            use_real_positions = false;
+        end
 
+        % If no real positions, create generic circular arrangement
+        if ~use_real_positions
             n_elecs = length(alpha_power);
             elec_angles = linspace(0, 2*pi, n_elecs+1);
             elec_angles = elec_angles(1:end-1);
-            elec_radii = 0.5 * ones(1, n_elecs);
+            elec_radii = 0.6 * ones(1, n_elecs);
 
             elec_x = elec_radii .* cos(elec_angles);
             elec_y = elec_radii .* sin(elec_angles);
-
-            % Use REAL power values
             valid_power = alpha_power;
             valid_power(isnan(valid_power)) = mean(valid_power(~isnan(valid_power)));
-
-            scatter(topoAx, elec_x, elec_y, 200, valid_power, 'filled', ...
-                'MarkerEdgeColor', 'k', 'LineWidth', 1);
-
-            text(topoAx, 0, -1.35, 'Real Alpha Power (Generic Positions)', ...
-                'HorizontalAlignment', 'center', 'FontSize', 9, ...
-                'Color', [0.8 0.6 0.2], 'FontWeight', 'bold');
         end
+
+        % Create 2D interpolation grid for smooth topographic map
+        if length(elec_x) >= 3
+            % Create fine grid
+            grid_res = 100;
+            [xi, yi] = meshgrid(linspace(-1.2, 1.2, grid_res), linspace(-1.2, 1.2, grid_res));
+
+            % Interpolate alpha power across the grid
+            try
+                % Use scattered interpolant for smooth interpolation
+                F = scatteredInterpolant(elec_x(:), elec_y(:), valid_power(:), 'natural', 'linear');
+                zi = F(xi, yi);
+
+                % Mask to only show inside head (circular region)
+                head_mask = sqrt(xi.^2 + yi.^2) <= 1.0;
+                zi(~head_mask) = NaN;
+
+                % Create smooth contour plot
+                contourf(topoAx, xi, yi, zi, 20, 'LineStyle', 'none');
+
+                % Overlay electrode positions as small black dots
+                scatter(topoAx, elec_x, elec_y, 30, 'k', 'filled', 'MarkerEdgeColor', 'w', 'LineWidth', 0.5);
+
+                % Add status text
+                if use_real_positions
+                    status_text = 'Real Alpha Power Distribution';
+                    status_color = [0.2 0.6 0.2];
+                else
+                    status_text = 'Real Alpha Power (Approx. Positions)';
+                    status_color = [0.8 0.6 0.2];
+                end
+
+            catch ME
+                % Fallback: simple scattered plot if interpolation fails
+                warning('Interpolation failed: %s. Using scatter plot.', ME.message);
+                scatter(topoAx, elec_x, elec_y, 200, valid_power, 'filled', ...
+                    'MarkerEdgeColor', 'k', 'LineWidth', 1);
+
+                if use_real_positions
+                    status_text = 'Real Alpha Power (No Interpolation)';
+                    status_color = [0.6 0.6 0.2];
+                else
+                    status_text = 'Real Alpha Power (Generic Positions)';
+                    status_color = [0.8 0.6 0.2];
+                end
+            end
+        else
+            % Not enough electrodes
+            text(topoAx, 0, 0, 'Insufficient electrode data', ...
+                'HorizontalAlignment', 'center', 'FontSize', 12);
+            status_text = 'Insufficient Data';
+            status_color = [0.8 0.3 0.2];
+        end
+
+        % Draw head outline ON TOP of everything
+        theta = linspace(0, 2*pi, 100);
+        x_head = cos(theta);
+        y_head = sin(theta);
+        plot(topoAx, x_head, y_head, 'k', 'LineWidth', 2.5);
+
+        % Nose
+        nose_x = [0.15, 0, -0.15];
+        nose_y = [1, 1.15, 1];
+        plot(topoAx, nose_x, nose_y, 'k', 'LineWidth', 2.5);
+
+        % Ears
+        ear_theta = linspace(-pi/2, pi/2, 20);
+        ear_r = 0.1;
+        % Left ear
+        ear_x_left = -1 + ear_r * cos(ear_theta + pi);
+        ear_y_left = ear_r * sin(ear_theta + pi);
+        plot(topoAx, ear_x_left, ear_y_left, 'k', 'LineWidth', 2.5);
+        % Right ear
+        ear_x_right = 1 + ear_r * cos(ear_theta);
+        ear_y_right = ear_r * sin(ear_theta);
+        plot(topoAx, ear_x_right, ear_y_right, 'k', 'LineWidth', 2.5);
+
+        % Add status text
+        text(topoAx, 0, -1.35, status_text, ...
+            'HorizontalAlignment', 'center', 'FontSize', 9, ...
+            'Color', status_color, 'FontWeight', 'bold');
 
         % Colormap and colorbar
         colormap(topoAx, 'jet');
         c = colorbar(topoAx);
         c.Label.String = 'Alpha Power (µV²)';
+        c.Label.FontSize = 10;
 
         % Formatting
         axis(topoAx, 'equal');

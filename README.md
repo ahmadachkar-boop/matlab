@@ -276,19 +276,24 @@ EEG = pop_icflag(EEG, [
 
 **All visualizations display REAL data from your EEG recording** - no simulated or artificial data is used.
 
-### 1. Topographic Power Map (REAL DATA)
-- **What it shows**: Actual spatial distribution of alpha band (8-13 Hz) power computed from each channel
+### 1. Topographic Power Map (REAL DATA - INTERPOLATED)
+- **What it shows**: Smooth, interpolated spatial distribution of alpha band (8-13 Hz) power across the entire scalp
 - **Data source**:
   - Computes power spectral density for each channel individually using Welch's method
   - Extracts mean power in 8-13 Hz range
   - Uses real electrode positions from your montage (when available)
+  - Interpolates power values across 100x100 grid using scattered interpolation
+  - Creates smooth contour map covering the entire head surface
+  - Small black dots show actual electrode locations
   - Label indicates: "Real Alpha Power Distribution" or "Real Alpha Power (Approx. Positions)"
 - **Interpretation**:
-  - Warmer colors (red/yellow) = higher actual alpha power from that electrode
+  - Smooth color gradients show interpolated power distribution across scalp
+  - Warmer colors (red/yellow) = higher actual alpha power
   - Cooler colors (blue/green) = lower actual alpha power
   - Posterior dominance of alpha is typical in healthy resting-state
   - Values shown in µV² (microvolts squared)
-- **Note**: If channel locations are missing, generic circular positions are used, but **power values are always real**
+  - Black dots indicate actual measurement locations
+- **Note**: Interpolation provides publication-quality visualization. If channel locations are missing, generic circular positions are used, but **power values are always real**
 
 ### 2. Power Spectral Density - PSD (REAL DATA)
 - **What it shows**: Actual power across frequency spectrum (0-50 Hz) from your EEG
