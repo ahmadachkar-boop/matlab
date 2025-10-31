@@ -109,33 +109,45 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
         freqs_plot = freqs(freq_idx);
         psd_plot = psd(freq_idx);
 
-        % Main PSD plot
-        plot(psdAx, freqs_plot, psd_plot, 'LineWidth', 2, 'Color', [0.2 0.4 0.8]);
-
-        % Highlight frequency bands
-        bands = struct(...
-            'Delta', [0.5 4, 0.9 0.7 0.7], ...
-            'Theta', [4 8, 0.9 0.9 0.6], ...
-            'Alpha', [8 13, 0.6 0.9 0.6], ...
-            'Beta', [13 30, 0.7 0.8 0.9], ...
-            'Gamma', [30 50, 0.9 0.7 0.9]);
-
-        band_names = fieldnames(bands);
+        % Define frequency bands with colors
+        bands = struct();
+        bands.names = {'Delta', 'Theta', 'Alpha', 'Beta', 'Gamma'};
+        bands.ranges = [0.5 4; 4 8; 8 13; 13 30; 30 50];
+        bands.colors = [0.9 0.7 0.7; 0.9 0.9 0.6; 0.6 0.9 0.6; 0.7 0.8 0.9; 0.9 0.7 0.9];
         alpha_level = 0.15;
 
-        for i = 1:length(band_names)
-            band_data = bands.(band_names{i});
-            f_low = band_data(1);
-            f_high = band_data(2);
-            color = band_data(3:5);
+        % Get y-axis baseline for shading
+        y_min = min(psd_plot) - 5;
 
+        % Highlight frequency bands BEFORE plotting main line
+        for i = 1:length(bands.names)
+            f_low = bands.ranges(i, 1);
+            f_high = bands.ranges(i, 2);
+            color = bands.colors(i, :);
+
+            % Find indices in this band
             band_idx = freqs_plot >= f_low & freqs_plot <= f_high;
-            if any(band_idx)
-                fill(psdAx, [freqs_plot(band_idx), fliplr(freqs_plot(band_idx))], ...
-                     [psd_plot(band_idx)', min(ylim(psdAx))*ones(1,sum(band_idx))], ...
-                     color, 'FaceAlpha', alpha_level, 'EdgeColor', 'none');
+
+            if sum(band_idx) > 1  % Need at least 2 points
+                freqs_band = freqs_plot(band_idx);
+                psd_band = psd_plot(band_idx);
+
+                % Ensure row vectors
+                freqs_band = freqs_band(:)';
+                psd_band = psd_band(:)';
+
+                % Create polygon for fill: [left_to_right, right_to_left]
+                x_fill = [freqs_band, fliplr(freqs_band)];
+                y_fill = [psd_band, ones(1, length(freqs_band)) * y_min];
+
+                % Draw filled area
+                fill(psdAx, x_fill, y_fill, color, ...
+                    'FaceAlpha', alpha_level, 'EdgeColor', 'none');
             end
         end
+
+        % Plot main PSD line on top
+        plot(psdAx, freqs_plot, psd_plot, 'LineWidth', 2, 'Color', [0.2 0.4 0.8]);
 
         % Formatting
         xlabel(psdAx, 'Frequency (Hz)', 'FontSize', 11);
@@ -144,9 +156,9 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
         grid(psdAx, 'on');
         xlim(psdAx, [0 50]);
 
-        % Add legend for bands
-        legend(psdAx, {'PSD', 'Delta (0.5-4 Hz)', 'Theta (4-8 Hz)', 'Alpha (8-13 Hz)', ...
-                'Beta (13-30 Hz)', 'Gamma (30-50 Hz)'}, ...
+        % Add legend
+        legend(psdAx, {'Delta (0.5-4 Hz)', 'Theta (4-8 Hz)', 'Alpha (8-13 Hz)', ...
+                'Beta (13-30 Hz)', 'Gamma (30-50 Hz)', 'PSD'}, ...
                 'Location', 'northeast', 'FontSize', 8);
 
         hold(psdAx, 'off');
@@ -154,7 +166,8 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
     catch ME
         warning('Failed to create PSD plot: %s', ME.message);
         cla(psdAx);
-        text(psdAx, 0.5, 0.5, 'Visualization unavailable', 'HorizontalAlignment', 'center');
+        text(psdAx, 0.5, 0.5, 'PSD visualization unavailable', ...
+            'Units', 'normalized', 'HorizontalAlignment', 'center');
     end
 
     %% 3. SIGNAL QUALITY COMPARISON
