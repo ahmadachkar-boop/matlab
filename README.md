@@ -274,15 +274,28 @@ EEG = pop_icflag(EEG, [
 
 ## 📊 Understanding Visualizations
 
-### 1. Topographic Power Map
-- **What it shows**: Spatial distribution of alpha band (8-13 Hz) power
-- **Interpretation**:
-  - Warmer colors (red/yellow) = higher power
-  - Cooler colors (blue/green) = lower power
-  - Posterior dominance of alpha is typical in healthy resting-state
+**All visualizations display REAL data from your EEG recording** - no simulated or artificial data is used.
 
-### 2. Power Spectral Density (PSD)
-- **What it shows**: Power across frequency spectrum (0-50 Hz)
+### 1. Topographic Power Map (REAL DATA)
+- **What it shows**: Actual spatial distribution of alpha band (8-13 Hz) power computed from each channel
+- **Data source**:
+  - Computes power spectral density for each channel individually using Welch's method
+  - Extracts mean power in 8-13 Hz range
+  - Uses real electrode positions from your montage (when available)
+  - Label indicates: "Real Alpha Power Distribution" or "Real Alpha Power (Approx. Positions)"
+- **Interpretation**:
+  - Warmer colors (red/yellow) = higher actual alpha power from that electrode
+  - Cooler colors (blue/green) = lower actual alpha power
+  - Posterior dominance of alpha is typical in healthy resting-state
+  - Values shown in µV² (microvolts squared)
+- **Note**: If channel locations are missing, generic circular positions are used, but **power values are always real**
+
+### 2. Power Spectral Density - PSD (REAL DATA)
+- **What it shows**: Actual power across frequency spectrum (0-50 Hz) from your EEG
+- **Data source**:
+  - Computed using Welch's method on cleaned EEG data
+  - Shows average power across all channels
+  - Colored bands highlight standard frequency ranges
 - **Interpretation**:
   - Delta (0.5-4 Hz): Deep sleep, artifacts
   - Theta (4-8 Hz): Drowsiness, meditation
@@ -291,8 +304,12 @@ EEG = pop_icflag(EEG, [
   - Gamma (30-50 Hz): Cognitive processing, artifacts
   - Sharp peak at 60 Hz = line noise contamination
 
-### 3. Representative Signal Trace
-- **What it shows**: Sample of cleaned EEG signal (typically 3 seconds)
+### 3. Representative Signal Trace (REAL DATA)
+- **What it shows**: Actual 3-second sample of cleaned EEG signal from a representative channel
+- **Data source**:
+  - Attempts to use Cz electrode if available
+  - Falls back to middle channel otherwise
+  - Normalized for display (mean=0, std=1)
 - **Interpretation**:
   - Smooth oscillations = good quality
   - Sharp spikes = possible residual artifacts

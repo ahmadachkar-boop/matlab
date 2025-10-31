@@ -10,9 +10,32 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
 
     %% 1. TOPOGRAPHIC POWER MAP
     try
-        % Create simplified topographic representation
+        % Create topographic representation with REAL alpha power
         cla(topoAx);
         hold(topoAx, 'on');
+
+        % Compute REAL alpha power (8-13 Hz) for each channel
+        alpha_power = zeros(1, EEG_clean.nbchan);
+
+        for ch = 1:EEG_clean.nbchan
+            % Get channel data
+            channel_data = EEG_clean.data(ch, :);
+
+            % Compute power spectral density for this channel
+            fs = EEG_clean.srate;
+            try
+                [pxx, f] = pwelch(channel_data, hamming(fs*2), fs, fs*2, fs);
+
+                % Extract alpha band power (8-13 Hz)
+                alpha_idx = f >= 8 & f <= 13;
+                alpha_power(ch) = mean(pxx(alpha_idx));
+            catch
+                alpha_power(ch) = NaN; % Mark as missing if calculation fails
+            end
+        end
+
+        % Convert to microvolts squared
+        alpha_power = alpha_power * 1e12;
 
         % Draw head outline
         theta = linspace(0, 2*pi, 100);
@@ -37,33 +60,97 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
         ear_y_right = ear_r * sin(ear_theta);
         plot(topoAx, ear_x_right, ear_y_right, 'k', 'LineWidth', 2);
 
-        % Simulate electrode positions and alpha power
-        % Standard 10-20 positions (simplified)
-        n_elecs = min(EEG_clean.nbchan, 32);
+        % Get REAL electrode positions from EEG structure
+        if isfield(EEG_clean, 'chanlocs') && ~isempty(EEG_clean.chanlocs) && ...
+           isfield(EEG_clean.chanlocs, 'X') && isfield(EEG_clean.chanlocs, 'Y')
 
-        % Create approximate electrode positions in circle
-        elec_angles = linspace(0, 2*pi, n_elecs+1);
-        elec_angles = elec_angles(1:end-1);
+            % Extract real electrode coordinates
+            elec_x = [];
+            elec_y = [];
+            valid_power = [];
 
-        % Vary radius to simulate different electrode positions
-        elec_radii = 0.4 + 0.3 * (0.5 + 0.5 * sin(3*elec_angles));
+            for ch = 1:EEG_clean.nbchan
+                if ~isempty(EEG_clean.chanlocs(ch).X) && ~isempty(EEG_clean.chanlocs(ch).Y) && ...
+                   ~isnan(alpha_power(ch))
+                    % Convert 3D coordinates to 2D projection
+                    X = EEG_clean.chanlocs(ch).X;
+                    Y = EEG_clean.chanlocs(ch).Y;
+                    Z = EEG_clean.chanlocs(ch).Z;
 
-        elec_x = elec_radii .* cos(elec_angles);
-        elec_y = elec_radii .* sin(elec_angles);
+                    % Simple azimuthal projection
+                    if ~isempty(Z) && Z ~= 0
+                        % Project onto 2D circle
+                        radius = sqrt(X^2 + Y^2 + Z^2);
+                        if radius > 0
+                            % Normalize and project
+                            proj_x = Y / radius;  % Note: Y maps to x in top view
+                            proj_y = X / radius;  % X maps to y in top view
 
-        % Simulate alpha power values (use actual if available)
-        if isfield(metrics, 'alpha_power') && metrics.alpha_power > 0
-            base_power = metrics.alpha_power;
+                            elec_x(end+1) = proj_x;
+                            elec_y(end+1) = proj_y;
+                            valid_power(end+1) = alpha_power(ch);
+                        end
+                    end
+                end
+            end
+
+            % If we got valid positions, use them
+            if length(elec_x) >= 3
+                % Plot REAL alpha power at REAL electrode positions
+                scatter(topoAx, elec_x, elec_y, 200, valid_power, 'filled', ...
+                    'MarkerEdgeColor', 'k', 'LineWidth', 1);
+
+                % Add text note that this is real data
+                text(topoAx, 0, -1.35, 'Real Alpha Power Distribution', ...
+                    'HorizontalAlignment', 'center', 'FontSize', 9, ...
+                    'Color', [0.2 0.6 0.2], 'FontWeight', 'bold');
+            else
+                % Fallback: use generic positions but with real power values
+                warning('Channel locations incomplete, using approximate positions with real power values');
+
+                n_elecs = length(alpha_power);
+                elec_angles = linspace(0, 2*pi, n_elecs+1);
+                elec_angles = elec_angles(1:end-1);
+                elec_radii = 0.5 * ones(1, n_elecs);
+
+                elec_x = elec_radii .* cos(elec_angles);
+                elec_y = elec_radii .* sin(elec_angles);
+
+                % Use REAL power values (not simulated)
+                valid_power = alpha_power;
+                valid_power(isnan(valid_power)) = mean(valid_power(~isnan(valid_power)));
+
+                scatter(topoAx, elec_x, elec_y, 200, valid_power, 'filled', ...
+                    'MarkerEdgeColor', 'k', 'LineWidth', 1);
+
+                text(topoAx, 0, -1.35, 'Real Alpha Power (Approx. Positions)', ...
+                    'HorizontalAlignment', 'center', 'FontSize', 9, ...
+                    'Color', [0.8 0.6 0.2], 'FontWeight', 'bold');
+            end
+
         else
-            base_power = 50;
+            % No channel location info at all - use generic positions with real power
+            warning('No channel locations available, using generic positions with real power values');
+
+            n_elecs = length(alpha_power);
+            elec_angles = linspace(0, 2*pi, n_elecs+1);
+            elec_angles = elec_angles(1:end-1);
+            elec_radii = 0.5 * ones(1, n_elecs);
+
+            elec_x = elec_radii .* cos(elec_angles);
+            elec_y = elec_radii .* sin(elec_angles);
+
+            % Use REAL power values
+            valid_power = alpha_power;
+            valid_power(isnan(valid_power)) = mean(valid_power(~isnan(valid_power)));
+
+            scatter(topoAx, elec_x, elec_y, 200, valid_power, 'filled', ...
+                'MarkerEdgeColor', 'k', 'LineWidth', 1);
+
+            text(topoAx, 0, -1.35, 'Real Alpha Power (Generic Positions)', ...
+                'HorizontalAlignment', 'center', 'FontSize', 9, ...
+                'Color', [0.8 0.6 0.2], 'FontWeight', 'bold');
         end
-
-        % Add spatial variation (posterior alpha typically higher)
-        alpha_values = base_power * (1 + 0.5 * sin(elec_angles) + 0.3 * randn(1, n_elecs));
-        alpha_values = max(0, alpha_values);
-
-        % Plot electrode values
-        scatter(topoAx, elec_x, elec_y, 200, alpha_values, 'filled', 'MarkerEdgeColor', 'k');
 
         % Colormap and colorbar
         colormap(topoAx, 'jet');
@@ -73,7 +160,7 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
         % Formatting
         axis(topoAx, 'equal');
         topoAx.XLim = [-1.4 1.4];
-        topoAx.YLim = [-1.3 1.5];
+        topoAx.YLim = [-1.4 1.5];
         topoAx.XTick = [];
         topoAx.YTick = [];
         topoAx.Box = 'off';
@@ -84,7 +171,8 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
     catch ME
         warning('Failed to create topographic map: %s', ME.message);
         cla(topoAx);
-        text(topoAx, 0.5, 0.5, 'Visualization unavailable', 'HorizontalAlignment', 'center');
+        text(topoAx, 0.5, 0.5, 'Topographic visualization unavailable', ...
+            'Units', 'normalized', 'HorizontalAlignment', 'center');
     end
 
     %% 2. POWER SPECTRAL DENSITY
