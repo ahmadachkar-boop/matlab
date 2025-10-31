@@ -37,6 +37,10 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         TopoAxes                matlab.ui.control.UIAxes
         PSDAxes                 matlab.ui.control.UIAxes
         SignalAxes              matlab.ui.control.UIAxes
+        ClinicalPanel           matlab.ui.container.Panel
+        ThetaBetaAxes           matlab.ui.control.UIAxes
+        MultiBandAxes           matlab.ui.control.UIAxes
+        AsymmetryAxes           matlab.ui.control.UIAxes
         MetricsPanel            matlab.ui.container.Panel
         ExportButton            matlab.ui.control.Button
         NewAnalysisButton       matlab.ui.control.Button
@@ -46,6 +50,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         EEG                     struct
         EEGClean                struct
         QualityMetrics          struct
+        ClinicalMetrics         struct
         ProcessingStages        cell
     end
 
@@ -73,7 +78,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         function createComponents(app)
             % Create UIFigure
             app.UIFigure = uifigure('Visible', 'off');
-            app.UIFigure.Position = [100 100 1200 800];
+            app.UIFigure.Position = [50 50 1200 1200];  % Increased height for clinical visualizations
             app.UIFigure.Name = 'EEG Quality Analyzer';
             app.UIFigure.Resize = 'off';
             app.UIFigure.Color = [0.95 0.96 0.97];
@@ -94,7 +99,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         function createUploadPanel(app)
             % Main Upload Panel
             app.UploadPanel = uipanel(app.UIFigure);
-            app.UploadPanel.Position = [1 1 1200 800];
+            app.UploadPanel.Position = [1 1 1200 1200];
             app.UploadPanel.BackgroundColor = [0.95 0.96 0.97];
             app.UploadPanel.BorderType = 'none';
 
@@ -174,7 +179,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         function createProcessingPanel(app)
             % Main Processing Panel
             app.ProcessingPanel = uipanel(app.UIFigure);
-            app.ProcessingPanel.Position = [1 1 1200 800];
+            app.ProcessingPanel.Position = [1 1 1200 1200];
             app.ProcessingPanel.BackgroundColor = [0.95 0.96 0.97];
             app.ProcessingPanel.BorderType = 'none';
             app.ProcessingPanel.Visible = 'off';
@@ -261,21 +266,21 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         function createResultsPanel(app)
             % Main Results Panel
             app.ResultsPanel = uipanel(app.UIFigure);
-            app.ResultsPanel.Position = [1 1 1200 800];
+            app.ResultsPanel.Position = [1 1 1200 1200];
             app.ResultsPanel.BackgroundColor = [0.95 0.96 0.97];
             app.ResultsPanel.BorderType = 'none';
             app.ResultsPanel.Visible = 'off';
 
             % Status Icon
             app.ResultsStatusIcon = uilabel(app.ResultsPanel);
-            app.ResultsStatusIcon.Position = [550 700 100 60];
+            app.ResultsStatusIcon.Position = [550 1100 100 60];  % Moved up
             app.ResultsStatusIcon.Text = '✅';
             app.ResultsStatusIcon.FontSize = 48;
             app.ResultsStatusIcon.HorizontalAlignment = 'center';
 
             % Status Label
             app.ResultsStatusLabel = uilabel(app.ResultsPanel);
-            app.ResultsStatusLabel.Position = [200 640 800 40];
+            app.ResultsStatusLabel.Position = [200 1040 800 40];  % Moved up
             app.ResultsStatusLabel.Text = 'EEG quality is sufficient for clinical interpretation';
             app.ResultsStatusLabel.FontSize = 22;
             app.ResultsStatusLabel.FontWeight = 'bold';
@@ -284,17 +289,20 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Quality Score
             app.QualityScoreLabel = uilabel(app.ResultsPanel);
-            app.QualityScoreLabel.Position = [400 590 400 35];
+            app.QualityScoreLabel.Position = [400 990 400 35];  % Moved up
             app.QualityScoreLabel.Text = 'Quality Score: 85/100';
             app.QualityScoreLabel.FontSize = 18;
             app.QualityScoreLabel.FontColor = [0.3 0.4 0.5];
             app.QualityScoreLabel.HorizontalAlignment = 'center';
 
-            % Visualization Panel
+            % Quality Visualization Panel (top row)
             app.VisualizationPanel = uipanel(app.ResultsPanel);
-            app.VisualizationPanel.Position = [50 200 1100 370];
+            app.VisualizationPanel.Position = [50 600 1100 370];  % Moved up
             app.VisualizationPanel.BackgroundColor = [1 1 1];
             app.VisualizationPanel.BorderType = 'line';
+            app.VisualizationPanel.Title = 'Signal Quality Assessment';
+            app.VisualizationPanel.FontSize = 13;
+            app.VisualizationPanel.FontWeight = 'bold';
 
             % Create three visualization axes
             % Topographic Map
@@ -316,15 +324,40 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             xlabel(app.SignalAxes, 'Time (s)');
             ylabel(app.SignalAxes, 'Amplitude (µV)');
 
-            % Metrics Panel
+            % Clinical Visualization Panel (ADHD/ASD Diagnostics - second row)
+            app.ClinicalPanel = uipanel(app.ResultsPanel);
+            app.ClinicalPanel.Position = [50 210 1100 370];  % Second row below quality panel
+            app.ClinicalPanel.BackgroundColor = [1 1 1];
+            app.ClinicalPanel.BorderType = 'line';
+            app.ClinicalPanel.Title = 'Clinical Diagnostics (ADHD/ASD Biomarkers)';
+            app.ClinicalPanel.FontSize = 13;
+            app.ClinicalPanel.FontWeight = 'bold';
+
+            % Clinical visualization axes
+            % Theta/Beta Ratio Map
+            app.ThetaBetaAxes = uiaxes(app.ClinicalPanel);
+            app.ThetaBetaAxes.Position = [30 50 320 280];
+            title(app.ThetaBetaAxes, 'Theta/Beta Ratio', 'FontSize', 12);
+
+            % Multi-Band Power Distribution
+            app.MultiBandAxes = uiaxes(app.ClinicalPanel);
+            app.MultiBandAxes.Position = [380 50 320 280];
+            title(app.MultiBandAxes, 'Multi-Band Power', 'FontSize', 12);
+
+            % Hemispheric Asymmetry
+            app.AsymmetryAxes = uiaxes(app.ClinicalPanel);
+            app.AsymmetryAxes.Position = [730 50 320 280];
+            title(app.AsymmetryAxes, 'Hemispheric Asymmetry', 'FontSize', 12);
+
+            % Metrics Panel (at bottom)
             app.MetricsPanel = uipanel(app.ResultsPanel);
-            app.MetricsPanel.Position = [50 80 1100 100];
+            app.MetricsPanel.Position = [50 90 1100 100];  % At bottom with space for buttons
             app.MetricsPanel.BackgroundColor = [0.95 0.98 1];
             app.MetricsPanel.BorderType = 'line';
 
-            % Action Buttons
+            % Action Buttons (at very bottom)
             app.ExportButton = uibutton(app.ResultsPanel, 'push');
-            app.ExportButton.Position = [400 30 180 35];
+            app.ExportButton.Position = [400 30 180 40];
             app.ExportButton.Text = '📄 Export Report';
             app.ExportButton.FontSize = 14;
             app.ExportButton.BackgroundColor = [0.3 0.5 0.8];
@@ -332,7 +365,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             app.ExportButton.ButtonPushedFcn = @(btn,event) exportReport(app);
 
             app.NewAnalysisButton = uibutton(app.ResultsPanel, 'push');
-            app.NewAnalysisButton.Position = [620 30 180 35];
+            app.NewAnalysisButton.Position = [620 30 180 40];
             app.NewAnalysisButton.Text = '🔄 New Analysis';
             app.NewAnalysisButton.FontSize = 14;
             app.NewAnalysisButton.BackgroundColor = [0.5 0.5 0.5];
@@ -504,6 +537,15 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             updateProgress(app, 5, 'Evaluating Quality...');
             metrics = computeQualityMetrics(app, EEG, EEG_original);
 
+            % Compute clinical diagnostic metrics (ADHD/ASD biomarkers)
+            try
+                clinical = computeClinicalMetrics(EEG);
+                app.ClinicalMetrics = clinical;
+            catch ME
+                warning('Clinical metrics computation failed: %s', ME.message);
+                app.ClinicalMetrics = struct();  % Empty struct as fallback
+            end
+
             % Stage 6: Generating Visualizations
             updateProgress(app, 6, 'Rendering Visualizations...');
 
@@ -644,16 +686,35 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         end
 
         function generateVisualizations(app)
-            % Generate visualizations using external function
+            % Generate quality visualizations
             try
                 generateEEGVisualizations(app.EEGClean, app.QualityMetrics, ...
                     app.TopoAxes, app.PSDAxes, app.SignalAxes);
             catch ME
-                warning('Visualization generation failed: %s', ME.message);
+                warning('Quality visualization generation failed: %s', ME.message);
                 % Fallback to simple placeholder
                 cla(app.TopoAxes);
                 text(app.TopoAxes, 0.5, 0.5, 'Visualization unavailable', ...
                     'HorizontalAlignment', 'center');
+            end
+
+            % Generate clinical visualizations (ADHD/ASD biomarkers)
+            if ~isempty(fieldnames(app.ClinicalMetrics))
+                try
+                    generateClinicalVisualizations(app.EEGClean, app.ClinicalMetrics, ...
+                        app.ThetaBetaAxes, app.MultiBandAxes, app.AsymmetryAxes);
+                catch ME
+                    warning('Clinical visualization generation failed: %s', ME.message);
+                    % Fallback to simple placeholder
+                    cla(app.ThetaBetaAxes);
+                    text(app.ThetaBetaAxes, 0.5, 0.5, 'Clinical visualization unavailable', ...
+                        'Units', 'normalized', 'HorizontalAlignment', 'center');
+                end
+            else
+                % Show message if clinical metrics weren't computed
+                cla(app.ThetaBetaAxes);
+                text(app.ThetaBetaAxes, 0.5, 0.5, 'Clinical metrics not available', ...
+                    'Units', 'normalized', 'HorizontalAlignment', 'center', 'FontSize', 12);
             end
         end
 
