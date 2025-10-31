@@ -286,23 +286,23 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         end
 
         function createResultsPanel(app)
-            % Main Results Panel
+            % Main Results Panel - Extended height for scrollable content
             app.ResultsPanel = uipanel(app.UIFigure);
-            app.ResultsPanel.Position = [1 1 1200 1200];
+            app.ResultsPanel.Position = [1 1 1200 1600];  % Increased height for all content
             app.ResultsPanel.BackgroundColor = [0.95 0.96 0.97];
             app.ResultsPanel.BorderType = 'none';
             app.ResultsPanel.Visible = 'off';
 
             % Status Icon
             app.ResultsStatusIcon = uilabel(app.ResultsPanel);
-            app.ResultsStatusIcon.Position = [550 1100 100 60];  % Moved up
+            app.ResultsStatusIcon.Position = [550 1500 100 60];  % Top
             app.ResultsStatusIcon.Text = '✅';
             app.ResultsStatusIcon.FontSize = 48;
             app.ResultsStatusIcon.HorizontalAlignment = 'center';
 
             % Status Label
             app.ResultsStatusLabel = uilabel(app.ResultsPanel);
-            app.ResultsStatusLabel.Position = [200 1040 800 40];  % Moved up
+            app.ResultsStatusLabel.Position = [200 1440 800 40];  % Below icon
             app.ResultsStatusLabel.Text = 'EEG quality is sufficient for clinical interpretation';
             app.ResultsStatusLabel.FontSize = 22;
             app.ResultsStatusLabel.FontWeight = 'bold';
@@ -311,15 +311,15 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Quality Score
             app.QualityScoreLabel = uilabel(app.ResultsPanel);
-            app.QualityScoreLabel.Position = [400 990 400 35];  % Moved up
+            app.QualityScoreLabel.Position = [400 1390 400 35];  % Below status
             app.QualityScoreLabel.Text = 'Quality Score: 85/100';
             app.QualityScoreLabel.FontSize = 18;
             app.QualityScoreLabel.FontColor = [0.3 0.4 0.5];
             app.QualityScoreLabel.HorizontalAlignment = 'center';
 
-            % Quality Visualization Panel (top row)
+            % Quality Visualization Panel (top section)
             app.VisualizationPanel = uipanel(app.ResultsPanel);
-            app.VisualizationPanel.Position = [50 600 1100 370];  % Moved up
+            app.VisualizationPanel.Position = [50 1000 1100 370];  % Below score
             app.VisualizationPanel.BackgroundColor = [1 1 1];
             app.VisualizationPanel.BorderType = 'line';
             app.VisualizationPanel.Title = 'Signal Quality Assessment';
@@ -346,9 +346,9 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             xlabel(app.SignalAxes, 'Time (s)');
             ylabel(app.SignalAxes, 'Amplitude (µV)');
 
-            % Clinical Visualization Panel (second row) - Expanded for bar chart
+            % Clinical Visualization Panel (middle section) - With bar chart
             app.ClinicalPanel = uipanel(app.ResultsPanel);
-            app.ClinicalPanel.Position = [50 -100 1100 490];  % Taller to fit bar chart
+            app.ClinicalPanel.Position = [50 480 1100 490];  % Below quality panel, positive Y
             app.ClinicalPanel.BackgroundColor = [1 1 1];
             app.ClinicalPanel.BorderType = 'line';
             app.ClinicalPanel.Title = 'Clinical Diagnostics';
@@ -358,34 +358,34 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             % Clinical visualization axes (topomaps on top row)
             % Theta/Beta Ratio Map
             app.ThetaBetaAxes = uiaxes(app.ClinicalPanel);
-            app.ThetaBetaAxes.Position = [30 170 320 280];  % Moved up
+            app.ThetaBetaAxes.Position = [30 170 320 280];
             title(app.ThetaBetaAxes, 'Theta/Beta Ratio', 'FontSize', 12);
 
             % Multi-Band Power Distribution
             app.MultiBandAxes = uiaxes(app.ClinicalPanel);
-            app.MultiBandAxes.Position = [380 170 320 280];  % Moved up
+            app.MultiBandAxes.Position = [380 170 320 280];
             title(app.MultiBandAxes, 'Multi-Band Power', 'FontSize', 12);
 
             % Hemispheric Asymmetry
             app.AsymmetryAxes = uiaxes(app.ClinicalPanel);
-            app.AsymmetryAxes.Position = [730 170 320 280];  % Moved up
+            app.AsymmetryAxes.Position = [730 170 320 280];
             title(app.AsymmetryAxes, 'Hemispheric Asymmetry', 'FontSize', 12);
 
-            % Frequency Band Bar Chart (bottom of panel)
+            % Frequency Band Bar Chart (bottom of clinical panel)
             app.BandBarAxes = uiaxes(app.ClinicalPanel);
-            app.BandBarAxes.Position = [30 20 1040 130];  % Full width bar chart
+            app.BandBarAxes.Position = [30 20 1040 130];
             title(app.BandBarAxes, 'Frequency Band Power Comparison', 'FontSize', 12);
             ylabel(app.BandBarAxes, 'Relative Power (%)');
 
-            % Metrics Panel (at bottom)
+            % Metrics Panel (below clinical panel)
             app.MetricsPanel = uipanel(app.ResultsPanel);
-            app.MetricsPanel.Position = [50 90 1100 100];  % At bottom with space for buttons
+            app.MetricsPanel.Position = [50 350 1100 100];  % Below clinical panel
             app.MetricsPanel.BackgroundColor = [0.95 0.98 1];
             app.MetricsPanel.BorderType = 'line';
 
-            % Action Buttons (at very bottom)
+            % Action Buttons (below metrics panel)
             app.ExportButton = uibutton(app.ResultsPanel, 'push');
-            app.ExportButton.Position = [400 30 180 40];
+            app.ExportButton.Position = [400 280 180 40];  % Below metrics panel
             app.ExportButton.Text = '📄 Export Report';
             app.ExportButton.FontSize = 14;
             app.ExportButton.BackgroundColor = [0.3 0.5 0.8];
@@ -393,7 +393,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             app.ExportButton.ButtonPushedFcn = @(btn,event) exportReport(app);
 
             app.NewAnalysisButton = uibutton(app.ResultsPanel, 'push');
-            app.NewAnalysisButton.Position = [620 30 180 40];
+            app.NewAnalysisButton.Position = [620 280 180 40];  % Below metrics panel
             app.NewAnalysisButton.Text = '🔄 New Analysis';
             app.NewAnalysisButton.FontSize = 14;
             app.NewAnalysisButton.BackgroundColor = [0.5 0.5 0.5];
