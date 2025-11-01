@@ -42,6 +42,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         MultiBandAxes           matlab.ui.control.UIAxes
         AsymmetryAxes           matlab.ui.control.UIAxes
         BandBarAxes             matlab.ui.control.UIAxes
+        BandBarAbsoluteAxes     matlab.ui.control.UIAxes
         MetricsPanel            matlab.ui.container.Panel
         ExportButton            matlab.ui.control.Button
         NewAnalysisButton       matlab.ui.control.Button
@@ -94,28 +95,53 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             % Create Results Panel
             createResultsPanel(app);
 
-            % Center panels initially
-            centerPanels(app);
-
-            % Make figure visible
+            % Make figure visible first
             app.UIFigure.Visible = 'on';
+
+            % Force window to update and maximize
+            drawnow;
+            pause(0.2);
+
+            % Now center panels after window is fully maximized
+            centerPanels(app);
         end
 
         function centerPanels(app)
             % Center all panels horizontally in the figure
+            % Only center if window is maximized
+            if ~strcmp(app.UIFigure.WindowState, 'maximized')
+                return;
+            end
+
+            % Let UI fully update
+            drawnow;
+            pause(0.15);
+            drawnow;
+
+            % Get current figure width
             figWidth = app.UIFigure.Position(3);
             panelWidth = 1200;
 
+            % Calculate centered X position
             if figWidth > panelWidth
-                xPos = (figWidth - panelWidth) / 2;
+                xPos = round((figWidth - panelWidth) / 2);
             else
-                xPos = 1;
+                xPos = 10;  % Small margin if window is smaller than panel
             end
 
             % Center each panel
-            app.UploadPanel.Position(1) = xPos;
-            app.ProcessingPanel.Position(1) = xPos;
-            app.ResultsPanel.Position(1) = xPos;
+            if isvalid(app.UploadPanel)
+                app.UploadPanel.Position(1) = xPos;
+            end
+            if isvalid(app.ProcessingPanel)
+                app.ProcessingPanel.Position(1) = xPos;
+            end
+            if isvalid(app.ResultsPanel)
+                app.ResultsPanel.Position(1) = xPos;
+            end
+
+            % Force update
+            drawnow;
         end
 
         function createUploadPanel(app)
@@ -346,9 +372,9 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             xlabel(app.SignalAxes, 'Time (s)');
             ylabel(app.SignalAxes, 'Amplitude (µV)');
 
-            % Clinical Visualization Panel (middle section) - With bar chart
+            % Clinical Visualization Panel (middle section) - With TWO bar charts
             app.ClinicalPanel = uipanel(app.ResultsPanel);
-            app.ClinicalPanel.Position = [50 480 1100 490];  % Below quality panel, positive Y
+            app.ClinicalPanel.Position = [50 380 1100 590];  % Increased height for two bar charts
             app.ClinicalPanel.BackgroundColor = [1 1 1];
             app.ClinicalPanel.BorderType = 'line';
             app.ClinicalPanel.Title = 'Clinical Diagnostics';
@@ -358,34 +384,41 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             % Clinical visualization axes (topomaps on top row)
             % Theta/Beta Ratio Map
             app.ThetaBetaAxes = uiaxes(app.ClinicalPanel);
-            app.ThetaBetaAxes.Position = [30 170 320 280];
+            app.ThetaBetaAxes.Position = [30 270 320 280];
             title(app.ThetaBetaAxes, 'Theta/Beta Ratio', 'FontSize', 12);
 
             % Multi-Band Power Distribution
             app.MultiBandAxes = uiaxes(app.ClinicalPanel);
-            app.MultiBandAxes.Position = [380 170 320 280];
+            app.MultiBandAxes.Position = [380 270 320 280];
             title(app.MultiBandAxes, 'Multi-Band Power', 'FontSize', 12);
 
             % Hemispheric Asymmetry
             app.AsymmetryAxes = uiaxes(app.ClinicalPanel);
-            app.AsymmetryAxes.Position = [730 170 320 280];
+            app.AsymmetryAxes.Position = [730 270 320 280];
             title(app.AsymmetryAxes, 'Hemispheric Asymmetry', 'FontSize', 12);
 
-            % Frequency Band Bar Chart (bottom of clinical panel)
+            % Frequency Band Bar Charts (bottom of clinical panel) - Side by side
+            % Relative Power Bar Chart (left)
             app.BandBarAxes = uiaxes(app.ClinicalPanel);
-            app.BandBarAxes.Position = [30 20 1040 130];
-            title(app.BandBarAxes, 'Frequency Band Power Comparison', 'FontSize', 12);
-            ylabel(app.BandBarAxes, 'Relative Power (%)');
+            app.BandBarAxes.Position = [30 20 510 230];
+            title(app.BandBarAxes, 'Relative Power (%)', 'FontSize', 11);
+            ylabel(app.BandBarAxes, 'Power (%)');
+
+            % Absolute Power Bar Chart (right)
+            app.BandBarAbsoluteAxes = uiaxes(app.ClinicalPanel);
+            app.BandBarAbsoluteAxes.Position = [560 20 510 230];
+            title(app.BandBarAbsoluteAxes, 'Absolute Power (µV²)', 'FontSize', 11);
+            ylabel(app.BandBarAbsoluteAxes, 'Power (µV²)');
 
             % Metrics Panel (below clinical panel)
             app.MetricsPanel = uipanel(app.ResultsPanel);
-            app.MetricsPanel.Position = [50 350 1100 100];  % Below clinical panel
+            app.MetricsPanel.Position = [50 250 1100 100];  % Adjusted Y position
             app.MetricsPanel.BackgroundColor = [0.95 0.98 1];
             app.MetricsPanel.BorderType = 'line';
 
             % Action Buttons (below metrics panel)
             app.ExportButton = uibutton(app.ResultsPanel, 'push');
-            app.ExportButton.Position = [400 280 180 40];  % Below metrics panel
+            app.ExportButton.Position = [400 180 180 40];  % Below metrics panel
             app.ExportButton.Text = '📄 Export Report';
             app.ExportButton.FontSize = 14;
             app.ExportButton.BackgroundColor = [0.3 0.5 0.8];
@@ -393,7 +426,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             app.ExportButton.ButtonPushedFcn = @(btn,event) exportReport(app);
 
             app.NewAnalysisButton = uibutton(app.ResultsPanel, 'push');
-            app.NewAnalysisButton.Position = [620 280 180 40];  % Below metrics panel
+            app.NewAnalysisButton.Position = [620 180 180 40];  % Below metrics panel
             app.NewAnalysisButton.Text = '🔄 New Analysis';
             app.NewAnalysisButton.FontSize = 14;
             app.NewAnalysisButton.BackgroundColor = [0.5 0.5 0.5];
@@ -730,7 +763,8 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             if ~isempty(fieldnames(app.ClinicalMetrics))
                 try
                     generateClinicalVisualizations(app.EEGClean, app.ClinicalMetrics, ...
-                        app.ThetaBetaAxes, app.MultiBandAxes, app.AsymmetryAxes, app.BandBarAxes);
+                        app.ThetaBetaAxes, app.MultiBandAxes, app.AsymmetryAxes, ...
+                        app.BandBarAxes, app.BandBarAbsoluteAxes);
                 catch ME
                     warning('Clinical visualization generation failed: %s', ME.message);
                     % Fallback to simple placeholder

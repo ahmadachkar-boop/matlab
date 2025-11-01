@@ -1,13 +1,14 @@
-function generateClinicalVisualizations(EEG_clean, clinical, thetaBetaAx, multiBandAx, asymmetryAx, bandBarAx)
+function generateClinicalVisualizations(EEG_clean, clinical, thetaBetaAx, multiBandAx, asymmetryAx, bandBarAx, bandBarAbsoluteAx)
     % GENERATECLINICALVISUALIZATIONS - Create clinical diagnostic visualizations
     %
     % Inputs:
-    %   EEG_clean      - Cleaned EEG structure
-    %   clinical       - Clinical metrics from computeClinicalMetrics()
-    %   thetaBetaAx    - UIAxes for theta/beta ratio map
-    %   multiBandAx    - UIAxes for multi-band power distribution
-    %   asymmetryAx    - UIAxes for hemispheric asymmetry analysis
-    %   bandBarAx      - UIAxes for frequency band bar chart
+    %   EEG_clean          - Cleaned EEG structure
+    %   clinical           - Clinical metrics from computeClinicalMetrics()
+    %   thetaBetaAx        - UIAxes for theta/beta ratio map
+    %   multiBandAx        - UIAxes for multi-band power distribution
+    %   asymmetryAx        - UIAxes for hemispheric asymmetry analysis
+    %   bandBarAx          - UIAxes for relative power bar chart
+    %   bandBarAbsoluteAx  - UIAxes for absolute power bar chart
 
     %% 1. THETA/BETA RATIO TOPOGRAPHIC MAP
     try
@@ -394,7 +395,7 @@ function generateClinicalVisualizations(EEG_clean, clinical, thetaBetaAx, multiB
             'Units', 'normalized', 'HorizontalAlignment', 'center');
     end
 
-    %% 4. FREQUENCY BAND BAR CHART
+    %% 4. RELATIVE POWER BAR CHART
     try
         cla(bandBarAx);
         hold(bandBarAx, 'on');
@@ -416,12 +417,11 @@ function generateClinicalVisualizations(EEG_clean, clinical, thetaBetaAx, multiB
         gamma_rel = (gamma_mean / total_power) * 100;
 
         % Create bar data
-        band_powers = [delta_rel, theta_rel, alpha_rel, beta_rel, gamma_rel];
-        band_names = {'Delta\n(0.5-4 Hz)', 'Theta\n(4-8 Hz)', 'Alpha\n(8-13 Hz)', ...
-                      'Beta\n(13-30 Hz)', 'Gamma\n(30-50 Hz)'};
+        band_powers_rel = [delta_rel, theta_rel, alpha_rel, beta_rel, gamma_rel];
+        band_names = {'Delta', 'Theta', 'Alpha', 'Beta', 'Gamma'};
 
         % Create bar chart
-        b = bar(bandBarAx, 1:5, band_powers, 'FaceColor', 'flat');
+        b = bar(bandBarAx, 1:5, band_powers_rel, 'FaceColor', 'flat');
 
         % Color each bar with its frequency band color
         band_colors = [0.9 0.7 0.7;   % Delta - red
@@ -433,29 +433,85 @@ function generateClinicalVisualizations(EEG_clean, clinical, thetaBetaAx, multiB
 
         % Add value labels on top of each bar
         for i = 1:5
-            text(bandBarAx, i, band_powers(i) + 2, sprintf('%.1f%%', band_powers(i)), ...
-                'HorizontalAlignment', 'center', 'FontSize', 10, 'FontWeight', 'bold');
+            y_offset = max(band_powers_rel) * 0.05;
+            text(bandBarAx, i, band_powers_rel(i) + y_offset, sprintf('%.1f%%', band_powers_rel(i)), ...
+                'HorizontalAlignment', 'center', 'FontSize', 9, 'FontWeight', 'bold');
         end
 
         % Formatting
         bandBarAx.XTick = 1:5;
         bandBarAx.XTickLabel = band_names;
         bandBarAx.XTickLabelRotation = 0;
-        bandBarAx.YLim = [0 max(band_powers) + 8];
+        bandBarAx.YLim = [0 max(band_powers_rel) * 1.15];
         bandBarAx.Box = 'off';
         grid(bandBarAx, 'on');
         bandBarAx.GridAlpha = 0.3;
 
-        title(bandBarAx, 'Frequency Band Power Comparison (Mean Across All Channels)', ...
-            'FontSize', 12, 'FontWeight', 'bold');
-        ylabel(bandBarAx, 'Relative Power (%)', 'FontSize', 10);
+        title(bandBarAx, 'Relative Power (%)', 'FontSize', 11, 'FontWeight', 'bold');
+        ylabel(bandBarAx, 'Power (%)', 'FontSize', 10);
 
         hold(bandBarAx, 'off');
 
     catch ME
-        warning('Failed to create band bar chart: %s', ME.message);
+        warning('Failed to create relative power bar chart: %s', ME.message);
         cla(bandBarAx);
         text(bandBarAx, 0.5, 0.5, 'Bar chart unavailable', ...
+            'Units', 'normalized', 'HorizontalAlignment', 'center');
+    end
+
+    %% 5. ABSOLUTE POWER BAR CHART
+    try
+        cla(bandBarAbsoluteAx);
+        hold(bandBarAbsoluteAx, 'on');
+
+        % Get mean absolute power for each band (averaged across all channels)
+        delta_abs = mean(clinical.band_powers.delta, 'omitnan');
+        theta_abs = mean(clinical.band_powers.theta, 'omitnan');
+        alpha_abs = mean(clinical.band_powers.alpha, 'omitnan');
+        beta_abs = mean(clinical.band_powers.beta, 'omitnan');
+        gamma_abs = mean(clinical.band_powers.gamma, 'omitnan');
+
+        % Create bar data for absolute power
+        band_powers_abs = [delta_abs, theta_abs, alpha_abs, beta_abs, gamma_abs];
+        band_names = {'Delta', 'Theta', 'Alpha', 'Beta', 'Gamma'};
+
+        % Create bar chart
+        b = bar(bandBarAbsoluteAx, 1:5, band_powers_abs, 'FaceColor', 'flat');
+
+        % Color each bar with its frequency band color
+        band_colors = [0.9 0.7 0.7;   % Delta - red
+                       0.9 0.9 0.6;   % Theta - yellow
+                       0.6 0.9 0.6;   % Alpha - green
+                       0.7 0.8 0.9;   % Beta - blue
+                       0.9 0.7 0.9];  % Gamma - purple
+        b.CData = band_colors;
+
+        % Add value labels on top of each bar
+        for i = 1:5
+            y_offset = max(band_powers_abs) * 0.05;
+            text(bandBarAbsoluteAx, i, band_powers_abs(i) + y_offset, ...
+                sprintf('%.2f', band_powers_abs(i)), ...
+                'HorizontalAlignment', 'center', 'FontSize', 9, 'FontWeight', 'bold');
+        end
+
+        % Formatting
+        bandBarAbsoluteAx.XTick = 1:5;
+        bandBarAbsoluteAx.XTickLabel = band_names;
+        bandBarAbsoluteAx.XTickLabelRotation = 0;
+        bandBarAbsoluteAx.YLim = [0 max(band_powers_abs) * 1.15];
+        bandBarAbsoluteAx.Box = 'off';
+        grid(bandBarAbsoluteAx, 'on');
+        bandBarAbsoluteAx.GridAlpha = 0.3;
+
+        title(bandBarAbsoluteAx, 'Absolute Power (µV²)', 'FontSize', 11, 'FontWeight', 'bold');
+        ylabel(bandBarAbsoluteAx, 'Power (µV²)', 'FontSize', 10);
+
+        hold(bandBarAbsoluteAx, 'off');
+
+    catch ME
+        warning('Failed to create absolute power bar chart: %s', ME.message);
+        cla(bandBarAbsoluteAx);
+        text(bandBarAbsoluteAx, 0.5, 0.5, 'Absolute power chart unavailable', ...
             'Units', 'normalized', 'HorizontalAlignment', 'center');
     end
 
