@@ -337,6 +337,60 @@ eeglab nogui;
 - Reduce data length
 - Update EEGLAB to latest version
 
+#### ICLabel MEX Compilation Warning (Performance Issue)
+**Warning Message**: `"ICLabel: defaulting to uncompiled matlab code (about 80x slower)"`
+
+**What it means**: ICLabel's C++ MEX files failed to compile, causing it to fall back to slower MATLAB code. Processing will still work but take significantly longer.
+
+**Solutions**:
+1. **Install Xcode Command Line Tools** (macOS):
+   ```bash
+   xcode-select --install
+   ```
+
+2. **Verify MATLAB compiler**:
+   ```matlab
+   mex -setup C++
+   ```
+
+3. **Manually compile ICLabel MEX files**:
+   ```matlab
+   % Navigate to ICLabel directory
+   cd('~/Library/Application Support/MathWorks/MATLAB Add-Ons/Collections/EEGLAB/plugins/ICLabel1.7/matconvnet')
+   % Run compilation
+   vl_compilenn
+   ```
+
+4. **Alternative**: Live with slower performance (processing will take 5-20 min instead of seconds for ICLabel step)
+
+5. **Contact ICLabel support**: If compilation continues to fail, email Luca Pion-Tonachini at lpionton@ucsd.edu with your system details
+
+**Note**: This warning does not affect accuracy, only processing speed.
+
+#### EEGLAB Path Warning (Repeated Messages)
+**Warning Message**: `"Path Warning: It appears that you have added the path to all of the subfolders to EEGLAB"`
+
+**What it means**: All EEGLAB subfolders were added to MATLAB path, which may cause conflicts.
+
+**Solution**:
+1. Remove all EEGLAB paths:
+   ```matlab
+   rmpath(genpath('/path/to/eeglab'));
+   ```
+
+2. Go to EEGLAB folder and run:
+   ```matlab
+   cd /path/to/eeglab
+   eeglab
+   ```
+
+   EEGLAB will automatically add only the necessary paths.
+
+3. Save the path for future sessions:
+   ```matlab
+   savepath
+   ```
+
 ## 📚 Background & Methods
 
 ### Preprocessing Pipeline

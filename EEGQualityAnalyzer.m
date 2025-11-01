@@ -385,8 +385,8 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         function loadFileInfo(app)
             % Quick load to get basic info
             try
-                % Initialize EEGLAB
-                eeglab nogui;
+                % EEGLAB is already initialized by launchEEGAnalyzer
+                % No need to reinitialize here
 
                 % Load file based on extension
                 [~, ~, ext] = fileparts(app.EEGFile);
