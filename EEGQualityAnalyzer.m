@@ -84,6 +84,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             app.UIFigure.Name = 'EEG Quality Analyzer';
             app.UIFigure.Color = [0.95 0.96 0.97];
             app.UIFigure.Scrollable = 'on';
+            app.UIFigure.AutoResizeChildren = 'off';  % Required for SizeChangedFcn to work
             app.UIFigure.SizeChangedFcn = @(fig, event) centerPanels(app);
 
             % Create Upload Panel
