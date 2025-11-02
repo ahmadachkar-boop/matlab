@@ -10,20 +10,147 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
 
     %% 1. TOPOGRAPHIC POWER MAP
     try
-        % Create simplified topographic representation
+        % Create interpolated topographic map with REAL alpha power
         cla(topoAx);
         hold(topoAx, 'on');
 
-        % Draw head outline
+        % Compute REAL alpha power (8-13 Hz) for each channel
+        alpha_power = zeros(1, EEG_clean.nbchan);
+
+        for ch = 1:EEG_clean.nbchan
+            % Get channel data
+            channel_data = EEG_clean.data(ch, :);
+
+            % Compute power spectral density for this channel
+            fs = EEG_clean.srate;
+            try
+                [pxx, f] = pwelch(channel_data, hamming(fs*2), fs, fs*2, fs);
+
+                % Extract alpha band power (8-13 Hz)
+                alpha_idx = f >= 8 & f <= 13;
+                alpha_power(ch) = mean(pxx(alpha_idx));
+            catch
+                alpha_power(ch) = NaN; % Mark as missing if calculation fails
+            end
+        end
+
+        % Convert to microvolts squared
+        alpha_power = alpha_power * 1e12;
+
+        % Get electrode positions
+        elec_x = [];
+        elec_y = [];
+        valid_power = [];
+
+        % Try to get REAL electrode positions from EEG structure
+        if isfield(EEG_clean, 'chanlocs') && ~isempty(EEG_clean.chanlocs) && ...
+           isfield(EEG_clean.chanlocs, 'X') && isfield(EEG_clean.chanlocs, 'Y')
+
+            for ch = 1:EEG_clean.nbchan
+                if ~isempty(EEG_clean.chanlocs(ch).X) && ~isempty(EEG_clean.chanlocs(ch).Y) && ...
+                   ~isnan(alpha_power(ch))
+                    % Convert 3D coordinates to 2D projection
+                    X = EEG_clean.chanlocs(ch).X;
+                    Y = EEG_clean.chanlocs(ch).Y;
+                    Z = EEG_clean.chanlocs(ch).Z;
+
+                    % Simple azimuthal projection
+                    if ~isempty(Z) && Z ~= 0
+                        % Project onto 2D circle
+                        radius = sqrt(X^2 + Y^2 + Z^2);
+                        if radius > 0
+                            % Normalize and project
+                            proj_x = Y / radius;
+                            proj_y = X / radius;
+
+                            elec_x(end+1) = proj_x;
+                            elec_y(end+1) = proj_y;
+                            valid_power(end+1) = alpha_power(ch);
+                        end
+                    end
+                end
+            end
+            use_real_positions = length(elec_x) >= 3;
+        else
+            use_real_positions = false;
+        end
+
+        % If no real positions, create generic circular arrangement
+        if ~use_real_positions
+            n_elecs = length(alpha_power);
+            elec_angles = linspace(0, 2*pi, n_elecs+1);
+            elec_angles = elec_angles(1:end-1);
+            elec_radii = 0.6 * ones(1, n_elecs);
+
+            elec_x = elec_radii .* cos(elec_angles);
+            elec_y = elec_radii .* sin(elec_angles);
+            valid_power = alpha_power;
+            valid_power(isnan(valid_power)) = mean(valid_power(~isnan(valid_power)));
+        end
+
+        % Create 2D interpolation grid for smooth topographic map
+        if length(elec_x) >= 3
+            % Create fine grid
+            grid_res = 100;
+            [xi, yi] = meshgrid(linspace(-1.2, 1.2, grid_res), linspace(-1.2, 1.2, grid_res));
+
+            % Interpolate alpha power across the grid
+            try
+                % Use scattered interpolant for smooth interpolation
+                F = scatteredInterpolant(elec_x(:), elec_y(:), valid_power(:), 'natural', 'linear');
+                zi = F(xi, yi);
+
+                % Mask to only show inside head (circular region)
+                head_mask = sqrt(xi.^2 + yi.^2) <= 1.0;
+                zi(~head_mask) = NaN;
+
+                % Create smooth contour plot
+                contourf(topoAx, xi, yi, zi, 20, 'LineStyle', 'none');
+
+                % Overlay electrode positions as small black dots
+                scatter(topoAx, elec_x, elec_y, 30, 'k', 'filled', 'MarkerEdgeColor', 'w', 'LineWidth', 0.5);
+
+                % Add status text
+                if use_real_positions
+                    status_text = 'Real Alpha Power Distribution';
+                    status_color = [0.2 0.6 0.2];
+                else
+                    status_text = 'Real Alpha Power (Approx. Positions)';
+                    status_color = [0.8 0.6 0.2];
+                end
+
+            catch ME
+                % Fallback: simple scattered plot if interpolation fails
+                warning('Interpolation failed: %s. Using scatter plot.', ME.message);
+                scatter(topoAx, elec_x, elec_y, 200, valid_power, 'filled', ...
+                    'MarkerEdgeColor', 'k', 'LineWidth', 1);
+
+                if use_real_positions
+                    status_text = 'Real Alpha Power (No Interpolation)';
+                    status_color = [0.6 0.6 0.2];
+                else
+                    status_text = 'Real Alpha Power (Generic Positions)';
+                    status_color = [0.8 0.6 0.2];
+                end
+            end
+        else
+            % Not enough electrodes
+            text(topoAx, 0, 0, 'Insufficient electrode data', ...
+                'HorizontalAlignment', 'center', 'FontSize', 12);
+            status_text = 'Insufficient Data';
+            status_color = [0.8 0.3 0.2];
+        end
+
+        % Draw head outline ON TOP of everything
         theta = linspace(0, 2*pi, 100);
         x_head = cos(theta);
         y_head = sin(theta);
-        plot(topoAx, x_head, y_head, 'k', 'LineWidth', 2);
+        plot(topoAx, x_head, y_head, 'k', 'LineWidth', 2.5);
 
         % Nose
         nose_x = [0.15, 0, -0.15];
         nose_y = [1, 1.15, 1];
-        plot(topoAx, nose_x, nose_y, 'k', 'LineWidth', 2);
+        plot(topoAx, nose_x, nose_y, 'k', 'LineWidth', 2.5);
 
         % Ears
         ear_theta = linspace(-pi/2, pi/2, 20);
@@ -31,49 +158,27 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
         % Left ear
         ear_x_left = -1 + ear_r * cos(ear_theta + pi);
         ear_y_left = ear_r * sin(ear_theta + pi);
-        plot(topoAx, ear_x_left, ear_y_left, 'k', 'LineWidth', 2);
+        plot(topoAx, ear_x_left, ear_y_left, 'k', 'LineWidth', 2.5);
         % Right ear
         ear_x_right = 1 + ear_r * cos(ear_theta);
         ear_y_right = ear_r * sin(ear_theta);
-        plot(topoAx, ear_x_right, ear_y_right, 'k', 'LineWidth', 2);
+        plot(topoAx, ear_x_right, ear_y_right, 'k', 'LineWidth', 2.5);
 
-        % Simulate electrode positions and alpha power
-        % Standard 10-20 positions (simplified)
-        n_elecs = min(EEG_clean.nbchan, 32);
-
-        % Create approximate electrode positions in circle
-        elec_angles = linspace(0, 2*pi, n_elecs+1);
-        elec_angles = elec_angles(1:end-1);
-
-        % Vary radius to simulate different electrode positions
-        elec_radii = 0.4 + 0.3 * (0.5 + 0.5 * sin(3*elec_angles));
-
-        elec_x = elec_radii .* cos(elec_angles);
-        elec_y = elec_radii .* sin(elec_angles);
-
-        % Simulate alpha power values (use actual if available)
-        if isfield(metrics, 'alpha_power') && metrics.alpha_power > 0
-            base_power = metrics.alpha_power;
-        else
-            base_power = 50;
-        end
-
-        % Add spatial variation (posterior alpha typically higher)
-        alpha_values = base_power * (1 + 0.5 * sin(elec_angles) + 0.3 * randn(1, n_elecs));
-        alpha_values = max(0, alpha_values);
-
-        % Plot electrode values
-        scatter(topoAx, elec_x, elec_y, 200, alpha_values, 'filled', 'MarkerEdgeColor', 'k');
+        % Add status text
+        text(topoAx, 0, -1.35, status_text, ...
+            'HorizontalAlignment', 'center', 'FontSize', 9, ...
+            'Color', status_color, 'FontWeight', 'bold');
 
         % Colormap and colorbar
         colormap(topoAx, 'jet');
         c = colorbar(topoAx);
         c.Label.String = 'Alpha Power (µV²)';
+        c.Label.FontSize = 10;
 
         % Formatting
         axis(topoAx, 'equal');
         topoAx.XLim = [-1.4 1.4];
-        topoAx.YLim = [-1.3 1.5];
+        topoAx.YLim = [-1.4 1.5];
         topoAx.XTick = [];
         topoAx.YTick = [];
         topoAx.Box = 'off';
@@ -84,7 +189,8 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
     catch ME
         warning('Failed to create topographic map: %s', ME.message);
         cla(topoAx);
-        text(topoAx, 0.5, 0.5, 'Visualization unavailable', 'HorizontalAlignment', 'center');
+        text(topoAx, 0.5, 0.5, 'Topographic visualization unavailable', ...
+            'Units', 'normalized', 'HorizontalAlignment', 'center');
     end
 
     %% 2. POWER SPECTRAL DENSITY
@@ -109,49 +215,45 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
         freqs_plot = freqs(freq_idx);
         psd_plot = psd(freq_idx);
 
-        % Main PSD plot
-        plot(psdAx, freqs_plot, psd_plot, 'LineWidth', 2, 'Color', [0.2 0.4 0.8]);
-
-        % Get y-axis limits after initial plot
-        y_min = min(psd_plot);
-
-        % Highlight frequency bands
-        bands = struct(...
-            'Delta', [0.5 4, 0.9 0.7 0.7], ...
-            'Theta', [4 8, 0.9 0.9 0.6], ...
-            'Alpha', [8 13, 0.6 0.9 0.6], ...
-            'Beta', [13 30, 0.7 0.8 0.9], ...
-            'Gamma', [30 50, 0.9 0.7 0.9]);
-
-        band_names = fieldnames(bands);
+        % Define frequency bands with colors
+        bands = struct();
+        bands.names = {'Delta', 'Theta', 'Alpha', 'Beta', 'Gamma'};
+        bands.ranges = [0.5 4; 4 8; 8 13; 13 30; 30 50];
+        bands.colors = [0.9 0.7 0.7; 0.9 0.9 0.6; 0.6 0.9 0.6; 0.7 0.8 0.9; 0.9 0.7 0.9];
         alpha_level = 0.15;
 
-        for i = 1:length(band_names)
-            band_data = bands.(band_names{i});
-            f_low = band_data(1);
-            f_high = band_data(2);
-            color = band_data(3:5);
+        % Get y-axis baseline for shading
+        y_min = min(psd_plot) - 5;
 
+        % Highlight frequency bands BEFORE plotting main line
+        for i = 1:length(bands.names)
+            f_low = bands.ranges(i, 1);
+            f_high = bands.ranges(i, 2);
+            color = bands.colors(i, :);
+
+            % Find indices in this band
             band_idx = freqs_plot >= f_low & freqs_plot <= f_high;
-            if any(band_idx)
-                % Ensure all vectors are row vectors for proper concatenation
+
+            if sum(band_idx) > 1  % Need at least 2 points
                 freqs_band = freqs_plot(band_idx);
                 psd_band = psd_plot(band_idx);
 
-                % Convert to row vectors if needed
-                if size(freqs_band, 1) > 1
-                    freqs_band = freqs_band';
-                end
-                if size(psd_band, 1) > 1
-                    psd_band = psd_band';
-                end
+                % Ensure row vectors for proper concatenation
+                freqs_band = freqs_band(:)';
+                psd_band = psd_band(:)';
 
-                % Create filled area
-                fill(psdAx, [freqs_band, fliplr(freqs_band)], ...
-                     [psd_band, y_min*ones(1, length(psd_band))], ...
-                     color, 'FaceAlpha', alpha_level, 'EdgeColor', 'none');
+                % Create polygon for fill: [left_to_right, right_to_left]
+                x_fill = [freqs_band, fliplr(freqs_band)];
+                y_fill = [psd_band, ones(1, length(freqs_band)) * y_min];
+
+                % Draw filled area
+                fill(psdAx, x_fill, y_fill, color, ...
+                    'FaceAlpha', alpha_level, 'EdgeColor', 'none');
             end
         end
+
+        % Plot main PSD line on top
+        plot(psdAx, freqs_plot, psd_plot, 'LineWidth', 2, 'Color', [0.2 0.4 0.8]);
 
         % Formatting
         xlabel(psdAx, 'Frequency (Hz)', 'FontSize', 11);
@@ -160,9 +262,9 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
         grid(psdAx, 'on');
         xlim(psdAx, [0 50]);
 
-        % Add legend for bands
-        legend(psdAx, {'PSD', 'Delta (0.5-4 Hz)', 'Theta (4-8 Hz)', 'Alpha (8-13 Hz)', ...
-                'Beta (13-30 Hz)', 'Gamma (30-50 Hz)'}, ...
+        % Add legend
+        legend(psdAx, {'Delta (0.5-4 Hz)', 'Theta (4-8 Hz)', 'Alpha (8-13 Hz)', ...
+                'Beta (13-30 Hz)', 'Gamma (30-50 Hz)', 'PSD'}, ...
                 'Location', 'northeast', 'FontSize', 8);
 
         hold(psdAx, 'off');
@@ -170,7 +272,8 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
     catch ME
         warning('Failed to create PSD plot: %s', ME.message);
         cla(psdAx);
-        text(psdAx, 0.5, 0.5, 'Visualization unavailable', 'HorizontalAlignment', 'center');
+        text(psdAx, 0.5, 0.5, 'PSD visualization unavailable', ...
+            'Units', 'normalized', 'HorizontalAlignment', 'center');
     end
 
     %% 3. SIGNAL QUALITY COMPARISON

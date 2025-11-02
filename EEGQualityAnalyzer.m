@@ -37,6 +37,11 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         TopoAxes                matlab.ui.control.UIAxes
         PSDAxes                 matlab.ui.control.UIAxes
         SignalAxes              matlab.ui.control.UIAxes
+        ClinicalPanel           matlab.ui.container.Panel
+        ThetaBetaAxes           matlab.ui.control.UIAxes
+        MultiBandAxes           matlab.ui.control.UIAxes
+        AsymmetryAxes           matlab.ui.control.UIAxes
+        BandBarAxes             matlab.ui.control.UIAxes
         MetricsPanel            matlab.ui.container.Panel
         ExportButton            matlab.ui.control.Button
         NewAnalysisButton       matlab.ui.control.Button
@@ -46,6 +51,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         EEG                     struct
         EEGClean                struct
         QualityMetrics          struct
+        ClinicalMetrics         struct
         ProcessingStages        cell
     end
 
@@ -71,12 +77,13 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
     methods (Access = private)
 
         function createComponents(app)
-            % Create UIFigure
+            % Create UIFigure - Fullscreen
             app.UIFigure = uifigure('Visible', 'off');
-            app.UIFigure.Position = [100 100 1200 800];
+            app.UIFigure.WindowState = 'maximized';
             app.UIFigure.Name = 'EEG Quality Analyzer';
-            app.UIFigure.Resize = 'off';
             app.UIFigure.Color = [0.95 0.96 0.97];
+            app.UIFigure.Scrollable = 'on';
+            app.UIFigure.SizeChangedFcn = @(fig, event) centerPanels(app);
 
             % Create Upload Panel
             createUploadPanel(app);
@@ -87,20 +94,40 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             % Create Results Panel
             createResultsPanel(app);
 
+            % Center panels initially
+            centerPanels(app);
+
             % Make figure visible
             app.UIFigure.Visible = 'on';
+        end
+
+        function centerPanels(app)
+            % Center all panels horizontally in the figure
+            figWidth = app.UIFigure.Position(3);
+            panelWidth = 1200;
+
+            if figWidth > panelWidth
+                xPos = (figWidth - panelWidth) / 2;
+            else
+                xPos = 1;
+            end
+
+            % Center each panel
+            app.UploadPanel.Position(1) = xPos;
+            app.ProcessingPanel.Position(1) = xPos;
+            app.ResultsPanel.Position(1) = xPos;
         end
 
         function createUploadPanel(app)
             % Main Upload Panel
             app.UploadPanel = uipanel(app.UIFigure);
-            app.UploadPanel.Position = [1 1 1200 800];
+            app.UploadPanel.Position = [1 1 1200 1200];
             app.UploadPanel.BackgroundColor = [0.95 0.96 0.97];
             app.UploadPanel.BorderType = 'none';
 
-            % Title
+            % Title (centered in taller window)
             titleLabel = uilabel(app.UploadPanel);
-            titleLabel.Position = [300 720 600 50];
+            titleLabel.Position = [300 920 600 50];  % Moved up 200px
             titleLabel.Text = 'EEG Quality Analyzer';
             titleLabel.FontSize = 32;
             titleLabel.FontWeight = 'bold';
@@ -109,7 +136,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Subtitle
             subtitleLabel = uilabel(app.UploadPanel);
-            subtitleLabel.Position = [300 680 600 30];
+            subtitleLabel.Position = [300 880 600 30];  % Moved up 200px
             subtitleLabel.Text = 'Upload your EEG file to begin automated quality assessment';
             subtitleLabel.FontSize = 14;
             subtitleLabel.FontColor = [0.4 0.5 0.6];
@@ -117,7 +144,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Drop Zone Panel
             app.DropZonePanel = uipanel(app.UploadPanel);
-            app.DropZonePanel.Position = [300 400 600 250];
+            app.DropZonePanel.Position = [300 600 600 250];  % Moved up 200px
             app.DropZonePanel.BackgroundColor = [1 1 1];
             app.DropZonePanel.BorderType = 'line';
             app.DropZonePanel.BorderWidth = 2;
@@ -142,7 +169,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % File Info Panel (hidden initially)
             app.FileInfoPanel = uipanel(app.UploadPanel);
-            app.FileInfoPanel.Position = [300 200 600 150];
+            app.FileInfoPanel.Position = [300 400 600 150];  % Moved up 200px
             app.FileInfoPanel.BackgroundColor = [0.95 0.98 1];
             app.FileInfoPanel.BorderType = 'line';
             app.FileInfoPanel.Visible = 'off';
@@ -174,14 +201,14 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         function createProcessingPanel(app)
             % Main Processing Panel
             app.ProcessingPanel = uipanel(app.UIFigure);
-            app.ProcessingPanel.Position = [1 1 1200 800];
+            app.ProcessingPanel.Position = [1 1 1200 1200];
             app.ProcessingPanel.BackgroundColor = [0.95 0.96 0.97];
             app.ProcessingPanel.BorderType = 'none';
             app.ProcessingPanel.Visible = 'off';
 
             % Title
             app.ProcessingLabel = uilabel(app.ProcessingPanel);
-            app.ProcessingLabel.Position = [300 680 600 50];
+            app.ProcessingLabel.Position = [300 880 600 50];  % Moved up 200px
             app.ProcessingLabel.Text = 'Processing EEG Data';
             app.ProcessingLabel.FontSize = 28;
             app.ProcessingLabel.FontWeight = 'bold';
@@ -190,14 +217,14 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Animated Icon
             app.AnimatedIcon = uilabel(app.ProcessingPanel);
-            app.AnimatedIcon.Position = [550 580 100 80];
+            app.AnimatedIcon.Position = [550 780 100 80];  % Moved up 200px
             app.AnimatedIcon.Text = '🧠';
             app.AnimatedIcon.FontSize = 64;
             app.AnimatedIcon.HorizontalAlignment = 'center';
 
             % Stage Label
             app.StageLabel = uilabel(app.ProcessingPanel);
-            app.StageLabel.Position = [300 520 600 30];
+            app.StageLabel.Position = [300 720 600 30];  % Moved up 200px
             app.StageLabel.Text = 'Initializing...';
             app.StageLabel.FontSize = 16;
             app.StageLabel.FontColor = [0.3 0.4 0.5];
@@ -205,7 +232,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Progress Bar (using UIAxes)
             app.ProgressBar = uiaxes(app.ProcessingPanel);
-            app.ProgressBar.Position = [300 450 600 40];
+            app.ProgressBar.Position = [300 650 600 40];  % Moved up 200px
             app.ProgressBar.XLim = [0 100];
             app.ProgressBar.YLim = [0 1];
             app.ProgressBar.XTick = [];
@@ -221,7 +248,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Progress Percentage
             app.ProgressText = uilabel(app.ProcessingPanel);
-            app.ProgressText.Position = [300 410 600 25];
+            app.ProgressText.Position = [300 610 600 25];  % Moved up 200px
             app.ProgressText.Text = '0%';
             app.ProgressText.FontSize = 14;
             app.ProgressText.FontWeight = 'bold';
@@ -230,7 +257,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Processing stages info
             stagesPanel = uipanel(app.ProcessingPanel);
-            stagesPanel.Position = [350 200 500 180];
+            stagesPanel.Position = [350 400 500 180];  % Moved up 200px
             stagesPanel.BackgroundColor = [1 1 1];
             stagesPanel.BorderType = 'line';
 
@@ -259,23 +286,23 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         end
 
         function createResultsPanel(app)
-            % Main Results Panel
+            % Main Results Panel - Extended height for scrollable content
             app.ResultsPanel = uipanel(app.UIFigure);
-            app.ResultsPanel.Position = [1 1 1200 800];
+            app.ResultsPanel.Position = [1 1 1200 1600];  % Increased height for all content
             app.ResultsPanel.BackgroundColor = [0.95 0.96 0.97];
             app.ResultsPanel.BorderType = 'none';
             app.ResultsPanel.Visible = 'off';
 
             % Status Icon
             app.ResultsStatusIcon = uilabel(app.ResultsPanel);
-            app.ResultsStatusIcon.Position = [550 700 100 60];
+            app.ResultsStatusIcon.Position = [550 1500 100 60];  % Top
             app.ResultsStatusIcon.Text = '✅';
             app.ResultsStatusIcon.FontSize = 48;
             app.ResultsStatusIcon.HorizontalAlignment = 'center';
 
             % Status Label
             app.ResultsStatusLabel = uilabel(app.ResultsPanel);
-            app.ResultsStatusLabel.Position = [200 640 800 40];
+            app.ResultsStatusLabel.Position = [200 1440 800 40];  % Below icon
             app.ResultsStatusLabel.Text = 'EEG quality is sufficient for clinical interpretation';
             app.ResultsStatusLabel.FontSize = 22;
             app.ResultsStatusLabel.FontWeight = 'bold';
@@ -284,17 +311,20 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Quality Score
             app.QualityScoreLabel = uilabel(app.ResultsPanel);
-            app.QualityScoreLabel.Position = [400 590 400 35];
+            app.QualityScoreLabel.Position = [400 1390 400 35];  % Below status
             app.QualityScoreLabel.Text = 'Quality Score: 85/100';
             app.QualityScoreLabel.FontSize = 18;
             app.QualityScoreLabel.FontColor = [0.3 0.4 0.5];
             app.QualityScoreLabel.HorizontalAlignment = 'center';
 
-            % Visualization Panel
+            % Quality Visualization Panel (top section)
             app.VisualizationPanel = uipanel(app.ResultsPanel);
-            app.VisualizationPanel.Position = [50 200 1100 370];
+            app.VisualizationPanel.Position = [50 1000 1100 370];  % Below score
             app.VisualizationPanel.BackgroundColor = [1 1 1];
             app.VisualizationPanel.BorderType = 'line';
+            app.VisualizationPanel.Title = 'Signal Quality Assessment';
+            app.VisualizationPanel.FontSize = 13;
+            app.VisualizationPanel.FontWeight = 'bold';
 
             % Create three visualization axes
             % Topographic Map
@@ -316,15 +346,46 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             xlabel(app.SignalAxes, 'Time (s)');
             ylabel(app.SignalAxes, 'Amplitude (µV)');
 
-            % Metrics Panel
+            % Clinical Visualization Panel (middle section) - With bar chart
+            app.ClinicalPanel = uipanel(app.ResultsPanel);
+            app.ClinicalPanel.Position = [50 480 1100 490];  % Below quality panel, positive Y
+            app.ClinicalPanel.BackgroundColor = [1 1 1];
+            app.ClinicalPanel.BorderType = 'line';
+            app.ClinicalPanel.Title = 'Clinical Diagnostics';
+            app.ClinicalPanel.FontSize = 13;
+            app.ClinicalPanel.FontWeight = 'bold';
+
+            % Clinical visualization axes (topomaps on top row)
+            % Theta/Beta Ratio Map
+            app.ThetaBetaAxes = uiaxes(app.ClinicalPanel);
+            app.ThetaBetaAxes.Position = [30 170 320 280];
+            title(app.ThetaBetaAxes, 'Theta/Beta Ratio', 'FontSize', 12);
+
+            % Multi-Band Power Distribution
+            app.MultiBandAxes = uiaxes(app.ClinicalPanel);
+            app.MultiBandAxes.Position = [380 170 320 280];
+            title(app.MultiBandAxes, 'Multi-Band Power', 'FontSize', 12);
+
+            % Hemispheric Asymmetry
+            app.AsymmetryAxes = uiaxes(app.ClinicalPanel);
+            app.AsymmetryAxes.Position = [730 170 320 280];
+            title(app.AsymmetryAxes, 'Hemispheric Asymmetry', 'FontSize', 12);
+
+            % Frequency Band Bar Chart (bottom of clinical panel)
+            app.BandBarAxes = uiaxes(app.ClinicalPanel);
+            app.BandBarAxes.Position = [30 20 1040 130];
+            title(app.BandBarAxes, 'Frequency Band Power Comparison', 'FontSize', 12);
+            ylabel(app.BandBarAxes, 'Relative Power (%)');
+
+            % Metrics Panel (below clinical panel)
             app.MetricsPanel = uipanel(app.ResultsPanel);
-            app.MetricsPanel.Position = [50 80 1100 100];
+            app.MetricsPanel.Position = [50 350 1100 100];  % Below clinical panel
             app.MetricsPanel.BackgroundColor = [0.95 0.98 1];
             app.MetricsPanel.BorderType = 'line';
 
-            % Action Buttons
+            % Action Buttons (below metrics panel)
             app.ExportButton = uibutton(app.ResultsPanel, 'push');
-            app.ExportButton.Position = [400 30 180 35];
+            app.ExportButton.Position = [400 280 180 40];  % Below metrics panel
             app.ExportButton.Text = '📄 Export Report';
             app.ExportButton.FontSize = 14;
             app.ExportButton.BackgroundColor = [0.3 0.5 0.8];
@@ -332,7 +393,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             app.ExportButton.ButtonPushedFcn = @(btn,event) exportReport(app);
 
             app.NewAnalysisButton = uibutton(app.ResultsPanel, 'push');
-            app.NewAnalysisButton.Position = [620 30 180 35];
+            app.NewAnalysisButton.Position = [620 280 180 40];  % Below metrics panel
             app.NewAnalysisButton.Text = '🔄 New Analysis';
             app.NewAnalysisButton.FontSize = 14;
             app.NewAnalysisButton.BackgroundColor = [0.5 0.5 0.5];
@@ -504,6 +565,15 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             updateProgress(app, 5, 'Evaluating Quality...');
             metrics = computeQualityMetrics(app, EEG, EEG_original);
 
+            % Compute clinical diagnostic metrics (ADHD/ASD biomarkers)
+            try
+                clinical = computeClinicalMetrics(EEG);
+                app.ClinicalMetrics = clinical;
+            catch ME
+                warning('Clinical metrics computation failed: %s', ME.message);
+                app.ClinicalMetrics = struct();  % Empty struct as fallback
+            end
+
             % Stage 6: Generating Visualizations
             updateProgress(app, 6, 'Rendering Visualizations...');
 
@@ -525,20 +595,49 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                 warning('Advanced metrics failed: %s. Using basic metrics.', ME.message);
 
                 metrics = struct();
-                original_nbchan = EEG_original.nbchan;
-                chan_retention = EEG_clean.nbchan / original_nbchan;
+
+                % Channel metrics
+                metrics.channels_original = EEG_original.nbchan;
+                metrics.channels_clean = EEG_clean.nbchan;
+                metrics.channels_removed = EEG_original.nbchan - EEG_clean.nbchan;
+                chan_retention = EEG_clean.nbchan / EEG_original.nbchan;
+                metrics.channel_retention = chan_retention;
                 metrics.channel_score = chan_retention * 25;
-                metrics.channels_removed = original_nbchan - EEG_clean.nbchan;
+
+                % Artifact metrics
+                metrics.artifact_components = 0;
+                metrics.artifact_ratio = 0;
+                metrics.total_components = 0;
                 metrics.artifact_score = 20;
+
+                % Signal quality
+                metrics.snr_db = 15;
+                metrics.kurtosis = 3;
                 metrics.signal_score = 15;
+
+                % Spectral quality
                 metrics.spectral_score = 15;
+                metrics.delta_relative = 0;
+                metrics.theta_relative = 0;
+                metrics.alpha_relative = 0;
+                metrics.beta_relative = 0;
+                metrics.gamma_relative = 0;
+
+                % Overall
                 metrics.total_score = 75;
                 metrics.is_clean = true;
                 metrics.quality_level = 'Good';
-                metrics.duration = EEG_clean.xmax;
-                metrics.artifact_components = 0;
-                metrics.snr_db = 15;
+
+                % Duration
+                if isfield(EEG_clean, 'xmax')
+                    metrics.duration = EEG_clean.xmax;
+                else
+                    metrics.duration = 60;
+                end
+
+                % Other
                 metrics.noise_sources = {};
+                metrics.recommendations = {'Data processed with basic quality assessment'};
             end
         end
 
@@ -561,7 +660,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             metrics = app.QualityMetrics;
 
             % Update status based on quality
-            if metrics.is_clean
+            if isfield(metrics, 'is_clean') && metrics.is_clean
                 app.ResultsStatusIcon.Text = '✅';
                 app.ResultsStatusLabel.Text = 'EEG quality is sufficient for clinical interpretation';
                 app.ResultsStatusLabel.FontColor = [0.2 0.6 0.3];
@@ -572,23 +671,38 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             end
 
             % Update quality score
-            app.QualityScoreLabel.Text = sprintf('Quality Score: %d/100', metrics.total_score);
+            if isfield(metrics, 'total_score')
+                app.QualityScoreLabel.Text = sprintf('Quality Score: %d/100', metrics.total_score);
+            else
+                app.QualityScoreLabel.Text = 'Quality Score: Calculating...';
+            end
 
             % Generate visualizations if clean
-            if metrics.is_clean
+            if isfield(metrics, 'is_clean') && metrics.is_clean
                 generateVisualizations(app);
                 displayMetrics(app);
             else
                 % Show brief explanation
                 reasonText = 'Dominant noise sources detected:';
-                if metrics.channels_removed > EEG.nbchan * 0.2
-                    reasonText = sprintf('%s\n• Excessive bad channels', reasonText);
+
+                % Safely check each metric
+                if isfield(metrics, 'channels_removed') && isfield(metrics, 'channels_original')
+                    if metrics.channels_removed > metrics.channels_original * 0.2
+                        reasonText = sprintf('%s\n• Excessive bad channels', reasonText);
+                    end
                 end
-                if metrics.artifact_ratio > 0.3
+
+                if isfield(metrics, 'artifact_ratio') && metrics.artifact_ratio > 0.3
                     reasonText = sprintf('%s\n• High artifact contamination', reasonText);
                 end
-                if metrics.snr < 5
+
+                if isfield(metrics, 'snr_db') && metrics.snr_db < 5
                     reasonText = sprintf('%s\n• Low signal-to-noise ratio', reasonText);
+                end
+
+                % If no specific reasons found
+                if strcmp(reasonText, 'Dominant noise sources detected:')
+                    reasonText = 'EEG quality assessment indicates insufficient signal quality for reliable analysis.';
                 end
 
                 label = uilabel(app.MetricsPanel);
@@ -600,16 +714,35 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         end
 
         function generateVisualizations(app)
-            % Generate visualizations using external function
+            % Generate quality visualizations
             try
                 generateEEGVisualizations(app.EEGClean, app.QualityMetrics, ...
                     app.TopoAxes, app.PSDAxes, app.SignalAxes);
             catch ME
-                warning('Visualization generation failed: %s', ME.message);
+                warning('Quality visualization generation failed: %s', ME.message);
                 % Fallback to simple placeholder
                 cla(app.TopoAxes);
                 text(app.TopoAxes, 0.5, 0.5, 'Visualization unavailable', ...
                     'HorizontalAlignment', 'center');
+            end
+
+            % Generate clinical visualizations
+            if ~isempty(fieldnames(app.ClinicalMetrics))
+                try
+                    generateClinicalVisualizations(app.EEGClean, app.ClinicalMetrics, ...
+                        app.ThetaBetaAxes, app.MultiBandAxes, app.AsymmetryAxes, app.BandBarAxes);
+                catch ME
+                    warning('Clinical visualization generation failed: %s', ME.message);
+                    % Fallback to simple placeholder
+                    cla(app.ThetaBetaAxes);
+                    text(app.ThetaBetaAxes, 0.5, 0.5, 'Clinical visualization unavailable', ...
+                        'Units', 'normalized', 'HorizontalAlignment', 'center');
+                end
+            else
+                % Show message if clinical metrics weren't computed
+                cla(app.ThetaBetaAxes);
+                text(app.ThetaBetaAxes, 0.5, 0.5, 'Clinical metrics not available', ...
+                    'Units', 'normalized', 'HorizontalAlignment', 'center', 'FontSize', 12);
             end
         end
 
@@ -619,16 +752,55 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             metrics = app.QualityMetrics;
 
+            % Safely get values with defaults
+            if isfield(metrics, 'channels_clean')
+                channels_clean = metrics.channels_clean;
+            else
+                channels_clean = app.EEGClean.nbchan;
+            end
+
+            if isfield(metrics, 'channels_original')
+                channels_original = metrics.channels_original;
+            else
+                channels_original = channels_clean;
+            end
+
+            if isfield(metrics, 'artifact_components')
+                artifact_comps = metrics.artifact_components;
+            else
+                artifact_comps = 0;
+            end
+
+            if isfield(metrics, 'artifact_ratio')
+                artifact_ratio = metrics.artifact_ratio * 100;
+            else
+                artifact_ratio = 0;
+            end
+
+            if isfield(metrics, 'snr_db')
+                snr = metrics.snr_db;
+            else
+                snr = 15;
+            end
+
+            if isfield(metrics, 'duration')
+                duration = metrics.duration / 60;
+            elseif isfield(app.EEGClean, 'xmax')
+                duration = app.EEGClean.xmax / 60;
+            else
+                duration = 0;
+            end
+
             % Create metric labels with comprehensive information
             metricTexts = {
-                sprintf('📊 Channels: %d/%d retained', metrics.channels_clean, metrics.channels_original)
-                sprintf('🎯 Artifacts: %d components removed (%.1f%%)', metrics.artifact_components, metrics.artifact_ratio*100)
-                sprintf('📈 SNR: %.1f dB', metrics.snr_db)
-                sprintf('⏱️  Duration: %.1f min', metrics.duration/60)
+                sprintf('📊 Channels: %d/%d retained', channels_clean, channels_original)
+                sprintf('🎯 Artifacts: %d components removed (%.1f%%)', artifact_comps, artifact_ratio)
+                sprintf('📈 SNR: %.1f dB', snr)
+                sprintf('⏱️  Duration: %.1f min', duration)
             };
 
             % Add band power information if available
-            if isfield(metrics, 'alpha_relative')
+            if isfield(metrics, 'alpha_relative') && metrics.alpha_relative > 0
                 extraText = sprintf('🧠 Alpha Power: %.1f%%', metrics.alpha_relative*100);
                 metricTexts{end+1} = extraText;
             end
