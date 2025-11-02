@@ -153,31 +153,29 @@ function eventInfo = detectEEGEvents(EEG)
         fprintf('    -> Final: class=%s, size=[%s]\n', class(label), mat2str(size(label)));
     end
 
-    % Count unique event types (use case-sensitive comparison)
-    try
-        [unique_types, ~, idx] = unique(event_labels, 'stable');
-        counts = histc(idx, 1:length(unique_types));
-    catch ME
-        % Fallback if unique fails
-        fprintf('Warning: unique() failed, using manual grouping: %s\n', ME.message);
-        unique_types = {};
-        counts = [];
+    % Count unique event types using manual grouping (more robust than unique())
+    % unique() can fail with cell arrays of variable-length char arrays
+    fprintf('Grouping events manually...\n');
+    unique_types = {};
+    counts = [];
 
-        for i = 1:length(event_labels)
-            found = false;
-            for j = 1:length(unique_types)
-                if strcmp(event_labels{i}, unique_types{j})
-                    counts(j) = counts(j) + 1;
-                    found = true;
-                    break;
-                end
-            end
-            if ~found
-                unique_types{end+1} = event_labels{i};
-                counts(end+1) = 1;
+    for i = 1:length(event_labels)
+        found = false;
+        for j = 1:length(unique_types)
+            if strcmp(event_labels{i}, unique_types{j})
+                counts(j) = counts(j) + 1;
+                found = true;
+                break;
             end
         end
+        if ~found
+            unique_types{end+1} = event_labels{i};
+            counts(end+1) = 1;
+            fprintf('  Found new type: ''%s''\n', event_labels{i});
+        end
     end
+
+    fprintf('Total unique event types: %d\n', length(unique_types));
 
     % Sort by count (descending)
     [counts_sorted, sort_idx] = sort(counts, 'descend');
