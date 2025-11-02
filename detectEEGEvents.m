@@ -33,7 +33,7 @@ function eventInfo = detectEEGEvents(EEG)
     % Extract event types
     % Try different field names that commonly contain event types
     type_fields = {'type', 'code', 'label', 'name', 'description'};
-    event_labels = {};
+    event_labels = cell(1, length(events));
 
     for i = 1:length(events)
         label = '';
@@ -41,13 +41,33 @@ function eventInfo = detectEEGEvents(EEG)
         % Try to find the event type from various fields
         for f = 1:length(type_fields)
             field = type_fields{f};
-            if isfield(events, field) && ~isempty(events(i).(field))
+            if isfield(events, field) && length(events) >= i
                 value = events(i).(field);
-                if isnumeric(value)
-                    label = num2str(value);
-                elseif ischar(value) || isstring(value)
-                    label = char(value);
+
+                % Handle empty values
+                if isempty(value)
+                    continue;
                 end
+
+                % Handle different data types
+                if isnumeric(value)
+                    % Convert scalar or vector to string
+                    if isscalar(value)
+                        label = num2str(value);
+                    else
+                        label = mat2str(value);
+                    end
+                elseif ischar(value)
+                    label = value;
+                elseif isstring(value)
+                    label = char(value);
+                elseif iscell(value)
+                    % Handle cell arrays
+                    if ~isempty(value)
+                        label = char(value{1});
+                    end
+                end
+
                 if ~isempty(label)
                     break;
                 end
@@ -62,9 +82,31 @@ function eventInfo = detectEEGEvents(EEG)
         event_labels{i} = label;
     end
 
-    % Count unique event types
-    [unique_types, ~, idx] = unique(event_labels);
-    counts = histc(idx, 1:length(unique_types));
+    % Count unique event types (use case-sensitive comparison)
+    try
+        [unique_types, ~, idx] = unique(event_labels, 'stable');
+        counts = histc(idx, 1:length(unique_types));
+    catch ME
+        % Fallback if unique fails
+        fprintf('Warning: unique() failed, using manual grouping: %s\n', ME.message);
+        unique_types = {};
+        counts = [];
+
+        for i = 1:length(event_labels)
+            found = false;
+            for j = 1:length(unique_types)
+                if strcmp(event_labels{i}, unique_types{j})
+                    counts(j) = counts(j) + 1;
+                    found = true;
+                    break;
+                end
+            end
+            if ~found
+                unique_types{end+1} = event_labels{i};
+                counts(end+1) = 1;
+            end
+        end
+    end
 
     % Sort by count (descending)
     [counts_sorted, sort_idx] = sort(counts, 'descend');
