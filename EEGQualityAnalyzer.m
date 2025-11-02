@@ -19,8 +19,20 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         DurationLabel           matlab.ui.control.Label
         ChannelsLabel           matlab.ui.control.Label
         EventsDetectedLabel     matlab.ui.control.Label
-        EventSelectionLabel     matlab.ui.control.Label
-        EventSelectionListBox   matlab.ui.control.ListBox
+
+        % Epoch Definition Builder Components
+        EpochBuilderLabel       matlab.ui.control.Label
+        StartMarkerLabel        matlab.ui.control.Label
+        StartMarkerDropdown     matlab.ui.control.DropDown
+        EndMarkerLabel          matlab.ui.control.Label
+        EndMarkerDropdown       matlab.ui.control.DropDown
+        EpochNameLabel          matlab.ui.control.Label
+        EpochNameField          matlab.ui.control.EditField
+        AddEpochButton          matlab.ui.control.Button
+        EpochListLabel          matlab.ui.control.Label
+        EpochListBox            matlab.ui.control.ListBox
+        RemoveEpochButton       matlab.ui.control.Button
+
         StartButton             matlab.ui.control.Button
 
         % Processing Screen Components
@@ -69,7 +81,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         ProcessingStages        cell
         EventInfo               struct
         EpochedData             struct
-        SelectedEvents          cell
+        EpochDefinitions        cell  % Cell array of structs {startMarker, endMarker, name}
     end
 
     properties (Access = private)
@@ -215,21 +227,89 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             app.EventsDetectedLabel.FontColor = [0.3 0.5 0.7];
             app.EventsDetectedLabel.Visible = 'off';
 
-            % Event selection section (hidden initially, shown when events detected)
-            app.EventSelectionLabel = uilabel(app.FileInfoPanel);
-            app.EventSelectionLabel.Position = [20 225 760 25];
-            app.EventSelectionLabel.Text = '⚡ Select events to epoch around (multi-select with Ctrl/Cmd):';
-            app.EventSelectionLabel.FontSize = 13;
-            app.EventSelectionLabel.FontWeight = 'bold';
-            app.EventSelectionLabel.FontColor = [0.2 0.4 0.6];
-            app.EventSelectionLabel.Visible = 'off';
+            % Epoch Builder Section (hidden initially, shown when events detected)
+            app.EpochBuilderLabel = uilabel(app.FileInfoPanel);
+            app.EpochBuilderLabel.Position = [20 225 760 25];
+            app.EpochBuilderLabel.Text = '⚡ Define Epochs Between Markers:';
+            app.EpochBuilderLabel.FontSize = 13;
+            app.EpochBuilderLabel.FontWeight = 'bold';
+            app.EpochBuilderLabel.FontColor = [0.2 0.4 0.6];
+            app.EpochBuilderLabel.Visible = 'off';
 
-            % Event selection listbox
-            app.EventSelectionListBox = uilistbox(app.FileInfoPanel);
-            app.EventSelectionListBox.Position = [20 70 760 150];
-            app.EventSelectionListBox.FontSize = 12;
-            app.EventSelectionListBox.Multiselect = 'on';
-            app.EventSelectionListBox.Visible = 'off';
+            % Start Marker
+            app.StartMarkerLabel = uilabel(app.FileInfoPanel);
+            app.StartMarkerLabel.Position = [20 195 80 20];
+            app.StartMarkerLabel.Text = 'Start Marker:';
+            app.StartMarkerLabel.FontSize = 10;
+            app.StartMarkerLabel.Visible = 'off';
+
+            app.StartMarkerDropdown = uidropdown(app.FileInfoPanel);
+            app.StartMarkerDropdown.Position = [105 193 150 22];
+            app.StartMarkerDropdown.FontSize = 10;
+            app.StartMarkerDropdown.Items = {};
+            app.StartMarkerDropdown.Visible = 'off';
+
+            % End Marker
+            app.EndMarkerLabel = uilabel(app.FileInfoPanel);
+            app.EndMarkerLabel.Position = [265 195 70 20];
+            app.EndMarkerLabel.Text = 'End Marker:';
+            app.EndMarkerLabel.FontSize = 10;
+            app.EndMarkerLabel.Visible = 'off';
+
+            app.EndMarkerDropdown = uidropdown(app.FileInfoPanel);
+            app.EndMarkerDropdown.Position = [340 193 150 22];
+            app.EndMarkerDropdown.FontSize = 10;
+            app.EndMarkerDropdown.Items = {};
+            app.EndMarkerDropdown.Visible = 'off';
+
+            % Epoch Name
+            app.EpochNameLabel = uilabel(app.FileInfoPanel);
+            app.EpochNameLabel.Position = [500 195 80 20];
+            app.EpochNameLabel.Text = 'Epoch Name:';
+            app.EpochNameLabel.FontSize = 10;
+            app.EpochNameLabel.Visible = 'off';
+
+            app.EpochNameField = uieditfield(app.FileInfoPanel, 'text');
+            app.EpochNameField.Position = [585 193 120 22];
+            app.EpochNameField.FontSize = 10;
+            app.EpochNameField.Placeholder = 'e.g., Trial 1';
+            app.EpochNameField.Visible = 'off';
+
+            % Add Epoch Button
+            app.AddEpochButton = uibutton(app.FileInfoPanel, 'push');
+            app.AddEpochButton.Position = [715 190 65 28];
+            app.AddEpochButton.Text = '+ Add';
+            app.AddEpochButton.FontSize = 10;
+            app.AddEpochButton.FontWeight = 'bold';
+            app.AddEpochButton.BackgroundColor = [0.2 0.6 0.8];
+            app.AddEpochButton.FontColor = [1 1 1];
+            app.AddEpochButton.ButtonPushedFcn = @(btn,event) addEpochDefinition(app);
+            app.AddEpochButton.Visible = 'off';
+
+            % Epoch List Label
+            app.EpochListLabel = uilabel(app.FileInfoPanel);
+            app.EpochListLabel.Position = [20 160 760 20];
+            app.EpochListLabel.Text = 'Defined Epochs (will be compared):';
+            app.EpochListLabel.FontSize = 10;
+            app.EpochListLabel.FontWeight = 'bold';
+            app.EpochListLabel.Visible = 'off';
+
+            % Epoch List Box
+            app.EpochListBox = uilistbox(app.FileInfoPanel);
+            app.EpochListBox.Position = [20 70 680 85];
+            app.EpochListBox.FontSize = 10;
+            app.EpochListBox.Items = {};
+            app.EpochListBox.Visible = 'off';
+
+            % Remove Epoch Button
+            app.RemoveEpochButton = uibutton(app.FileInfoPanel, 'push');
+            app.RemoveEpochButton.Position = [710 70 70 30];
+            app.RemoveEpochButton.Text = 'Remove';
+            app.RemoveEpochButton.FontSize = 10;
+            app.RemoveEpochButton.BackgroundColor = [0.8 0.3 0.2];
+            app.RemoveEpochButton.FontColor = [1 1 1];
+            app.RemoveEpochButton.ButtonPushedFcn = @(btn,event) removeEpochDefinition(app);
+            app.RemoveEpochButton.Visible = 'off';
 
             % Start Button
             app.StartButton = uibutton(app.FileInfoPanel, 'push');
@@ -542,6 +622,9 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Initialize event visualization storage
             app.EventColumns = {};
+
+            % Initialize epoch definitions
+            app.EpochDefinitions = {};
         end
 
         function showUploadScreen(app)
@@ -610,34 +693,46 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                         app.EventsDetectedLabel.Text = sprintf('⚡ Events: %s', app.EventInfo.description);
                         app.EventsDetectedLabel.Visible = 'on';
 
-                        % Populate event selection listbox
-                        eventItems = cell(length(app.EventInfo.eventTypes), 1);
-                        for i = 1:length(app.EventInfo.eventTypes)
-                            eventItems{i} = sprintf('%s (%d events)', ...
-                                app.EventInfo.eventTypes{i}, ...
-                                app.EventInfo.eventCounts(i));
+                        % Populate marker dropdowns
+                        markerItems = app.EventInfo.eventTypes;
+                        app.StartMarkerDropdown.Items = markerItems;
+                        app.EndMarkerDropdown.Items = markerItems;
+
+                        % Set default selections (first and second marker if available)
+                        if length(markerItems) >= 2
+                            app.StartMarkerDropdown.Value = markerItems{1};
+                            app.EndMarkerDropdown.Value = markerItems{2};
+                        elseif length(markerItems) == 1
+                            app.StartMarkerDropdown.Value = markerItems{1};
+                            app.EndMarkerDropdown.Value = markerItems{1};
                         end
-                        app.EventSelectionListBox.Items = eventItems;
-                        app.EventSelectionListBox.ItemsData = app.EventInfo.eventTypes;
 
-                        % Select all events by default
-                        app.EventSelectionListBox.Value = app.EventInfo.eventTypes;
+                        % Show epoch builder UI
+                        app.EpochBuilderLabel.Visible = 'on';
+                        app.StartMarkerLabel.Visible = 'on';
+                        app.StartMarkerDropdown.Visible = 'on';
+                        app.EndMarkerLabel.Visible = 'on';
+                        app.EndMarkerDropdown.Visible = 'on';
+                        app.EpochNameLabel.Visible = 'on';
+                        app.EpochNameField.Visible = 'on';
+                        app.AddEpochButton.Visible = 'on';
+                        app.EpochListLabel.Visible = 'on';
+                        app.EpochListBox.Visible = 'on';
+                        app.RemoveEpochButton.Visible = 'on';
 
-                        % Show event selection UI
-                        app.EventSelectionLabel.Visible = 'on';
-                        app.EventSelectionListBox.Visible = 'on';
+                        % Clear any previous epoch definitions
+                        app.EpochDefinitions = {};
+                        app.EpochListBox.Items = {};
                     else
-                        % No events detected - hide event UI
+                        % No events detected - hide epoch builder UI
                         app.EventsDetectedLabel.Visible = 'off';
-                        app.EventSelectionLabel.Visible = 'off';
-                        app.EventSelectionListBox.Visible = 'off';
+                        hideEpochBuilder(app);
                     end
                 catch ME
                     fprintf('Warning: Event detection failed: %s\n', ME.message);
-                    % Hide event UI if detection fails
+                    % Hide epoch builder UI if detection fails
                     app.EventsDetectedLabel.Visible = 'off';
-                    app.EventSelectionLabel.Visible = 'off';
-                    app.EventSelectionListBox.Visible = 'off';
+                    hideEpochBuilder(app);
                 end
 
                 % Show file info panel
@@ -652,18 +747,15 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         end
 
         function startProcessing(app)
-            % Store selected events for epoching
-            if isfield(app, 'EventInfo') && isstruct(app.EventInfo) && ...
-               isfield(app.EventInfo, 'hasEvents') && app.EventInfo.hasEvents && ...
-               ~isempty(app.EventSelectionListBox.Value)
-                app.SelectedEvents = app.EventSelectionListBox.Value;
-                fprintf('User selected %d event type(s) for epoching:\n', length(app.SelectedEvents));
-                for i = 1:length(app.SelectedEvents)
-                    fprintf('  - %s\n', app.SelectedEvents{i});
+            % Check if user defined any epochs
+            if ~isempty(app.EpochDefinitions)
+                fprintf('User defined %d epoch type(s) for analysis:\n', length(app.EpochDefinitions));
+                for i = 1:length(app.EpochDefinitions)
+                    def = app.EpochDefinitions{i};
+                    fprintf('  %d. %s (from %s to %s)\n', i, def.name, def.startMarker, def.endMarker);
                 end
             else
-                app.SelectedEvents = {};
-                fprintf('No events selected for epoching\n');
+                fprintf('No epochs defined - will only perform continuous data analysis\n');
             end
 
             % Show processing screen
@@ -1065,66 +1157,23 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         end
 
         function detectAndDisplayEvents(app)
-            % Detect event markers in EEG data and populate event panel
-            % If events were already selected by user, automatically epoch them
+            % Analyze marker-pair epochs if user defined them
             try
-                % Re-detect events on cleaned data (event timing may have changed after cleaning)
+                % Re-detect events on cleaned data
                 app.EventInfo = detectEEGEvents(app.EEGClean);
 
-                if app.EventInfo.hasEvents
-                    % Show event panel
-                    app.EventPanel.Visible = 'on';
+                % If user defined epoch pairs, analyze them automatically
+                if app.EventInfo.hasEvents && ~isempty(app.EpochDefinitions)
+                    fprintf('\nAnalyzing marker-pair epochs...\n');
 
-                    % Update event info label
-                    app.EventInfoLabel.Text = sprintf('✓ %s', app.EventInfo.description);
-
-                    % Populate event listbox
-                    eventItems = cell(length(app.EventInfo.eventTypes), 1);
-                    for i = 1:length(app.EventInfo.eventTypes)
-                        eventItems{i} = sprintf('%s (%d trials)', ...
-                            app.EventInfo.eventTypes{i}, app.EventInfo.eventCounts(i));
-                    end
-                    app.EventListBox.Items = eventItems;
-
-                    % If user pre-selected events, automatically analyze them
-                    if ~isempty(app.SelectedEvents)
-                        fprintf('\nAutomatically epoching around pre-selected events...\n');
-
-                        % Set the selection in the listbox to match user's choice
-                        matchingItems = {};
-                        for i = 1:length(app.SelectedEvents)
-                            for j = 1:length(app.EventInfo.eventTypes)
-                                if strcmp(app.SelectedEvents{i}, app.EventInfo.eventTypes{j})
-                                    matchingItems{end+1} = eventItems{j};
-                                    break;
-                                end
-                            end
-                        end
-
-                        if ~isempty(matchingItems)
-                            app.EventListBox.Value = matchingItems;
-
-                            % Automatically analyze these events
-                            analyzeSelectedEvents(app);
-                        else
-                            fprintf('Warning: Pre-selected events not found in cleaned data\n');
-                        end
-                    else
-                        % No pre-selection, select first two items by default
-                        if length(eventItems) >= 2
-                            app.EventListBox.Value = eventItems(1:2);
-                        elseif length(eventItems) == 1
-                            app.EventListBox.Value = eventItems{1};
-                        end
-                    end
+                    % Epoch data using marker pairs
+                    analyzeMarkerPairEpochs(app);
                 else
-                    % Hide event panel if no events
-                    app.EventPanel.Visible = 'off';
+                    % Hide epoch panel if no epochs defined
                     app.EpochPanel.Visible = 'off';
                 end
             catch ME
-                warning('Event detection failed: %s', ME.message);
-                app.EventPanel.Visible = 'off';
+                warning('Event analysis failed: %s', ME.message);
                 app.EpochPanel.Visible = 'off';
             end
         end
@@ -1353,6 +1402,114 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             catch
                 % Silent fail for topomap
                 axis(axes, 'off');
+            end
+        end
+
+        function analyzeMarkerPairEpochs(app)
+            % Epoch data using marker pairs and display results
+            try
+                % Epoch the data using marker pairs
+                fprintf('\n=== Marker-Pair Epoch Analysis ===\n');
+                app.EpochedData = epochEEGByMarkerPairs(app.EEGClean, app.EpochDefinitions);
+
+                if isempty(app.EpochedData)
+                    fprintf('No valid epochs found\n');
+                    return;
+                end
+
+                % Show epoch panel
+                app.EpochPanel.Visible = 'on';
+
+                % Generate epoch visualizations
+                generateEpochVisualizations(app);
+
+            catch ME
+                warning('Error during marker-pair epoch analysis: %s', ME.message);
+                fprintf('Error: %s\n', ME.message);
+            end
+        end
+
+        function hideEpochBuilder(app)
+            % Hide all epoch builder UI elements
+            app.EpochBuilderLabel.Visible = 'off';
+            app.StartMarkerLabel.Visible = 'off';
+            app.StartMarkerDropdown.Visible = 'off';
+            app.EndMarkerLabel.Visible = 'off';
+            app.EndMarkerDropdown.Visible = 'off';
+            app.EpochNameLabel.Visible = 'off';
+            app.EpochNameField.Visible = 'off';
+            app.AddEpochButton.Visible = 'off';
+            app.EpochListLabel.Visible = 'off';
+            app.EpochListBox.Visible = 'off';
+            app.RemoveEpochButton.Visible = 'off';
+        end
+
+        function addEpochDefinition(app)
+            % Add a new epoch definition to the list
+            startMarker = app.StartMarkerDropdown.Value;
+            endMarker = app.EndMarkerDropdown.Value;
+            epochName = app.EpochNameField.Value;
+
+            % Generate default name if empty
+            if isempty(epochName)
+                epochName = sprintf('%s → %s', startMarker, endMarker);
+            end
+
+            % Create epoch definition struct
+            epochDef = struct();
+            epochDef.startMarker = startMarker;
+            epochDef.endMarker = endMarker;
+            epochDef.name = epochName;
+
+            % Add to list
+            app.EpochDefinitions{end+1} = epochDef;
+
+            % Update listbox
+            updateEpochListBox(app);
+
+            % Clear name field for next entry
+            app.EpochNameField.Value = '';
+
+            fprintf('Added epoch definition: %s (from %s to %s)\n', ...
+                epochName, startMarker, endMarker);
+        end
+
+        function removeEpochDefinition(app)
+            % Remove selected epoch definition from the list
+            selectedIdx = find(strcmp(app.EpochListBox.Items, app.EpochListBox.Value));
+
+            if isempty(selectedIdx)
+                return;
+            end
+
+            % Remove from list
+            app.EpochDefinitions(selectedIdx) = [];
+
+            % Update listbox
+            updateEpochListBox(app);
+
+            fprintf('Removed epoch definition\n');
+        end
+
+        function updateEpochListBox(app)
+            % Update the epoch list box with current definitions
+            if isempty(app.EpochDefinitions)
+                app.EpochListBox.Items = {};
+                return;
+            end
+
+            items = cell(length(app.EpochDefinitions), 1);
+            for i = 1:length(app.EpochDefinitions)
+                def = app.EpochDefinitions{i};
+                items{i} = sprintf('%d. %s (%s → %s)', ...
+                    i, def.name, def.startMarker, def.endMarker);
+            end
+
+            app.EpochListBox.Items = items;
+
+            % Select first item by default
+            if ~isempty(items)
+                app.EpochListBox.Value = items{1};
             end
         end
 
