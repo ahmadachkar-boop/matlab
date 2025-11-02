@@ -112,6 +112,9 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
         % Main PSD plot
         plot(psdAx, freqs_plot, psd_plot, 'LineWidth', 2, 'Color', [0.2 0.4 0.8]);
 
+        % Get y-axis limits after initial plot
+        y_min = min(psd_plot);
+
         % Highlight frequency bands
         bands = struct(...
             'Delta', [0.5 4, 0.9 0.7 0.7], ...
@@ -131,8 +134,21 @@ function generateEEGVisualizations(EEG_clean, metrics, topoAx, psdAx, signalAx)
 
             band_idx = freqs_plot >= f_low & freqs_plot <= f_high;
             if any(band_idx)
-                fill(psdAx, [freqs_plot(band_idx), fliplr(freqs_plot(band_idx))], ...
-                     [psd_plot(band_idx)', min(ylim(psdAx))*ones(1,sum(band_idx))], ...
+                % Ensure all vectors are row vectors for proper concatenation
+                freqs_band = freqs_plot(band_idx);
+                psd_band = psd_plot(band_idx);
+
+                % Convert to row vectors if needed
+                if size(freqs_band, 1) > 1
+                    freqs_band = freqs_band';
+                end
+                if size(psd_band, 1) > 1
+                    psd_band = psd_band';
+                end
+
+                % Create filled area
+                fill(psdAx, [freqs_band, fliplr(freqs_band)], ...
+                     [psd_band, y_min*ones(1, length(psd_band))], ...
                      color, 'FaceAlpha', alpha_level, 'EdgeColor', 'none');
             end
         end

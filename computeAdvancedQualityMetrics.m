@@ -247,4 +247,7 @@ function metrics = computeAdvancedQualityMetrics(EEG_original, EEG_clean)
 
     metrics.recommendations = recommendations;
 
+    %% 9. RECORDING METADATA
+    metrics.duration = EEG_clean.xmax; % Duration in seconds
+
 end
