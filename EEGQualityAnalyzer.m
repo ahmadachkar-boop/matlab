@@ -667,7 +667,9 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
         function startProcessing(app)
             % Store selected events for epoching
-            if app.EventInfo.hasEvents && ~isempty(app.EventSelectionListBox.Value)
+            if isfield(app, 'EventInfo') && isstruct(app.EventInfo) && ...
+               isfield(app.EventInfo, 'hasEvents') && app.EventInfo.hasEvents && ...
+               ~isempty(app.EventSelectionListBox.Value)
                 app.SelectedEvents = app.EventSelectionListBox.Value;
                 fprintf('User selected %d event type(s) for epoching:\n', length(app.SelectedEvents));
                 for i = 1:length(app.SelectedEvents)
