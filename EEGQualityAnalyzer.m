@@ -57,9 +57,8 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         TimeWindowStart         matlab.ui.control.NumericEditField
         TimeWindowEnd           matlab.ui.control.NumericEditField
         EpochPanel              matlab.ui.container.Panel
-        ERPAxes                 matlab.ui.control.UIAxes
-        EpochTopoAxes           matlab.ui.control.UIAxes
-        EpochMetricsPanel       matlab.ui.container.Panel
+        % Dynamic event visualization components (created per event type)
+        EventColumns            cell  % Cell array of panels for each event type
 
         % Data
         EEGFile                 char
@@ -516,34 +515,18 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             app.AnalyzeEventsButton.ButtonPushedFcn = @(btn,event) analyzeSelectedEvents(app);
 
             % Epoch Results Panel (hidden until analysis complete)
+            % This will be dynamically populated with side-by-side event comparisons
             app.EpochPanel = uipanel(app.ResultsPanel);
-            app.EpochPanel.Position = [50 1650 1100 400];  % Below event panel
+            app.EpochPanel.Position = [50 1500 1100 550];  % Taller for side-by-side layout
             app.EpochPanel.BackgroundColor = [1 1 1];
             app.EpochPanel.BorderType = 'line';
-            app.EpochPanel.Title = 'Event-Related Potentials (ERP)';
+            app.EpochPanel.Title = '⚡ Event-Related Potentials - Side-by-Side Comparison';
             app.EpochPanel.FontSize = 13;
             app.EpochPanel.FontWeight = 'bold';
             app.EpochPanel.Visible = 'off';
 
-            % ERP Axes (time-domain average)
-            app.ERPAxes = uiaxes(app.EpochPanel);
-            app.ERPAxes.Position = [30 50 500 300];
-            title(app.ERPAxes, 'Average ERP Waveform', 'FontSize', 12);
-            xlabel(app.ERPAxes, 'Time (s)');
-            ylabel(app.ERPAxes, 'Amplitude (µV)');
-
-            % Epoch Topographic Map (average at peak latency)
-            app.EpochTopoAxes = uiaxes(app.EpochPanel);
-            app.EpochTopoAxes.Position = [570 50 250 300];
-            title(app.EpochTopoAxes, 'Topography at Peak', 'FontSize', 12);
-
-            % Epoch Metrics Panel
-            app.EpochMetricsPanel = uipanel(app.EpochPanel);
-            app.EpochMetricsPanel.Position = [850 50 230 300];
-            app.EpochMetricsPanel.BackgroundColor = [0.95 0.98 1];
-            app.EpochMetricsPanel.BorderType = 'line';
-            app.EpochMetricsPanel.Title = 'Epoch Statistics';
-            app.EpochMetricsPanel.FontSize = 11;
+            % Note: Individual event visualizations will be created dynamically
+            % in generateEpochVisualizations() based on number of selected events
         end
 
         function initializeApp(app)
@@ -556,6 +539,9 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                 'Evaluating Quality...'
                 'Rendering Visualizations...'
             };
+
+            % Initialize event visualization storage
+            app.EventColumns = {};
         end
 
         function showUploadScreen(app)
@@ -1186,122 +1172,137 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         end
 
         function generateEpochVisualizations(app)
-            % Generate ERP and epoch visualizations
+            % Generate side-by-side ERP visualizations for easy comparison
             try
-                cla(app.ERPAxes);
-                cla(app.EpochTopoAxes);
-                delete(app.EpochMetricsPanel.Children);
+                % Clear any previous visualizations
+                if ~isempty(app.EventColumns)
+                    for i = 1:length(app.EventColumns)
+                        if isvalid(app.EventColumns{i})
+                            delete(app.EventColumns{i});
+                        end
+                    end
+                end
+                app.EventColumns = {};
 
-                hold(app.ERPAxes, 'on');
+                numEvents = length(app.EpochedData);
+                if numEvents == 0
+                    return;
+                end
 
                 % Define colors for different event types
                 colors = [0.2 0.4 0.8; 0.8 0.2 0.2; 0.2 0.8 0.2; 0.8 0.6 0.2; 0.6 0.2 0.8];
 
-                legendEntries = {};
+                % Calculate column width based on number of events (max 4 columns)
+                colsPerRow = min(numEvents, 4);
+                colWidth = floor((1100 - 40) / colsPerRow);  % Total width minus margins
+                numRows = ceil(numEvents / colsPerRow);
 
-                % Plot ERP for each event type
-                for i = 1:length(app.EpochedData)
+                % Create a column for each event type
+                for i = 1:numEvents
                     epochData = app.EpochedData(i);
 
                     if isempty(epochData.avgERP)
                         continue;
                     end
 
-                    % Plot average ERP from central channel (or channel with largest response)
+                    % Calculate position (arrange in grid)
+                    row = floor((i-1) / colsPerRow);
+                    col = mod(i-1, colsPerRow);
+                    xPos = 20 + col * colWidth;
+                    yPos = 520 - row * 270;  % Stack rows vertically
+
+                    % Create column panel for this event
+                    eventPanel = uipanel(app.EpochPanel);
+                    eventPanel.Position = [xPos yPos colWidth-10 260];
+                    eventPanel.BackgroundColor = [0.98 0.99 1];
+                    eventPanel.BorderType = 'line';
+
+                    % Event type header
+                    color = colors(mod(i-1, size(colors, 1)) + 1, :);
+                    headerLabel = uilabel(eventPanel);
+                    headerLabel.Position = [5 235 colWidth-20 20];
+                    headerLabel.Text = sprintf('📌 %s (n=%d)', epochData.eventType, epochData.numEpochs);
+                    headerLabel.FontSize = 11;
+                    headerLabel.FontWeight = 'bold';
+                    headerLabel.FontColor = color;
+                    headerLabel.HorizontalAlignment = 'center';
+
+                    % ERP plot
+                    erpAxes = uiaxes(eventPanel);
+                    erpAxes.Position = [10 120 colWidth-30 105];
+
+                    % Plot average ERP from channel with largest response
                     avgERP = epochData.avgERP;
                     [~, maxChan] = max(max(abs(avgERP), [], 2));
 
                     timeVec = epochData.timeVector;
                     erpWave = avgERP(maxChan, :);
 
-                    % Plot main line
-                    color = colors(mod(i-1, size(colors, 1)) + 1, :);
-                    plot(app.ERPAxes, timeVec, erpWave, 'LineWidth', 2, 'Color', color);
+                    hold(erpAxes, 'on');
+                    plot(erpAxes, timeVec, erpWave, 'LineWidth', 2, 'Color', color);
 
                     % Add shaded error band if std is available
                     if isfield(epochData, 'stdERP') && ~isempty(epochData.stdERP)
                         stdWave = epochData.stdERP(maxChan, :);
-                        fill(app.ERPAxes, [timeVec, fliplr(timeVec)], ...
+                        fill(erpAxes, [timeVec, fliplr(timeVec)], ...
                             [erpWave + stdWave, fliplr(erpWave - stdWave)], ...
                             color, 'FaceAlpha', 0.2, 'EdgeColor', 'none');
                     end
 
-                    legendEntries{end+1} = sprintf('%s (n=%d)', epochData.eventType, epochData.numEpochs);
-                end
+                    % Add zero line and event marker
+                    yLimits = ylim(erpAxes);
+                    plot(erpAxes, [0 0], yLimits, 'k--', 'LineWidth', 1);
+                    plot(erpAxes, xlim(erpAxes), [0 0], 'k:', 'LineWidth', 0.5);
 
-                % Add zero line and event marker
-                yLimits = ylim(app.ERPAxes);
-                plot(app.ERPAxes, [0 0], yLimits, 'k--', 'LineWidth', 1);
-                plot(app.ERPAxes, xlim(app.ERPAxes), [0 0], 'k:', 'LineWidth', 0.5);
+                    xlabel(erpAxes, 'Time (s)', 'FontSize', 9);
+                    ylabel(erpAxes, 'µV', 'FontSize', 9);
+                    grid(erpAxes, 'on');
+                    hold(erpAxes, 'off');
 
-                % Formatting
-                xlabel(app.ERPAxes, 'Time (s)', 'FontSize', 11);
-                ylabel(app.ERPAxes, 'Amplitude (µV)', 'FontSize', 11);
-                title(app.ERPAxes, 'Event-Related Potentials (ERP)', 'FontSize', 12, 'FontWeight', 'bold');
-                grid(app.ERPAxes, 'on');
-                legend(app.ERPAxes, legendEntries, 'Location', 'best', 'FontSize', 9);
+                    % Metrics below ERP
+                    metricsY = 95;
+                    if ~isempty(epochData.metrics)
+                        metrics = epochData.metrics;
 
-                hold(app.ERPAxes, 'off');
+                        metricsText = {
+                            sprintf('Epochs: %d/%d', metrics.good_epochs, metrics.num_epochs)
+                            sprintf('SNR: %.1f dB', metrics.mean_snr_db)
+                            sprintf('Amp: %.1f µV', metrics.mean_p2p_amplitude)
+                        };
 
-                % Display metrics for each event type
-                yPos = 250;
-                for i = 1:length(app.EpochedData)
-                    epochData = app.EpochedData(i);
-
-                    if isempty(epochData.metrics)
-                        continue;
+                        for m = 1:length(metricsText)
+                            metricLabel = uilabel(eventPanel);
+                            metricLabel.Position = [10 metricsY colWidth-20 16];
+                            metricLabel.Text = metricsText{m};
+                            metricLabel.FontSize = 9;
+                            metricLabel.FontColor = [0.3 0.4 0.5];
+                            metricLabel.HorizontalAlignment = 'center';
+                            metricsY = metricsY - 18;
+                        end
                     end
 
-                    % Event type label
-                    typeLabel = uilabel(app.EpochMetricsPanel);
-                    typeLabel.Position = [10 yPos 210 20];
-                    typeLabel.Text = sprintf('📌 %s', epochData.eventType);
-                    typeLabel.FontSize = 10;
-                    typeLabel.FontWeight = 'bold';
-                    color = colors(mod(i-1, size(colors, 1)) + 1, :);
-                    typeLabel.FontColor = color;
-                    yPos = yPos - 25;
+                    % Topographic map at peak latency
+                    topoAxes = uiaxes(eventPanel);
+                    topoAxes.Position = [10 5 colWidth-30 40];
 
-                    % Metrics
-                    metrics = epochData.metrics;
+                    % Generate mini topomap for this event
+                    generateMiniTopoMap(app, topoAxes, epochData);
 
-                    metricsText = {
-                        sprintf('Epochs: %d/%d good', metrics.good_epochs, metrics.num_epochs)
-                        sprintf('SNR: %.1f dB', metrics.mean_snr_db)
-                        sprintf('Amplitude: %.1f µV', metrics.mean_p2p_amplitude)
-                    };
-
-                    for m = 1:length(metricsText)
-                        metricLabel = uilabel(app.EpochMetricsPanel);
-                        metricLabel.Position = [20 yPos 190 18];
-                        metricLabel.Text = metricsText{m};
-                        metricLabel.FontSize = 9;
-                        metricLabel.FontColor = [0.3 0.4 0.5];
-                        yPos = yPos - 20;
-                    end
-
-                    yPos = yPos - 10;  % Space between event types
-                end
-
-                % Generate topographic map at peak latency (for first event type)
-                if ~isempty(app.EpochedData) && ~isempty(app.EpochedData(1).avgERP)
-                    generateEpochTopoMap(app, 1);
+                    % Store panel reference
+                    app.EventColumns{end+1} = eventPanel;
                 end
 
             catch ME
                 warning('Failed to generate epoch visualizations: %s', ME.message);
-                text(app.ERPAxes, 0.5, 0.5, 'Visualization failed', ...
-                    'Units', 'normalized', 'HorizontalAlignment', 'center');
             end
         end
 
-        function generateEpochTopoMap(app, eventIdx)
-            % Generate topographic map at peak latency for selected event type
+        function generateMiniTopoMap(app, axes, epochData)
+            % Generate a compact topographic map at peak latency
             try
-                cla(app.EpochTopoAxes);
-                hold(app.EpochTopoAxes, 'on');
+                cla(axes);
+                hold(axes, 'on');
 
-                epochData = app.EpochedData(eventIdx);
                 avgERP = epochData.avgERP;
                 timeVec = epochData.timeVector;
 
@@ -1310,19 +1311,16 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                 peakTime = timeVec(peakSample);
                 peakValues = avgERP(:, peakSample);
 
-                % Draw head outline
+                % Draw simple head outline
                 theta = linspace(0, 2*pi, 100);
-                plot(app.EpochTopoAxes, cos(theta), sin(theta), 'k', 'LineWidth', 2);
-
-                % Nose
-                plot(app.EpochTopoAxes, [0.15, 0, -0.15], [1, 1.15, 1], 'k', 'LineWidth', 2);
+                plot(axes, cos(theta)*0.9, sin(theta)*0.9, 'k', 'LineWidth', 1);
 
                 % Get electrode positions
                 if isfield(app.EEGClean, 'chanlocs') && ~isempty(app.EEGClean.chanlocs)
                     elec_x = [];
                     elec_y = [];
 
-                    for ch = 1:app.EEGClean.nbchan
+                    for ch = 1:min(length(peakValues), app.EEGClean.nbchan)
                         if isfield(app.EEGClean.chanlocs, 'X') && ~isempty(app.EEGClean.chanlocs(ch).X)
                             X = app.EEGClean.chanlocs(ch).X;
                             Y = app.EEGClean.chanlocs(ch).Y;
@@ -1331,52 +1329,32 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                             if ~isempty(Z)
                                 radius = sqrt(X^2 + Y^2 + Z^2);
                                 if radius > 0
-                                    elec_x(end+1) = Y / radius;
-                                    elec_y(end+1) = X / radius;
+                                    elec_x(end+1) = Y / radius * 0.8;
+                                    elec_y(end+1) = X / radius * 0.8;
                                 end
                             end
                         end
                     end
 
-                    if length(elec_x) >= 3
-                        % Interpolate
-                        grid_res = 80;
-                        [xi, yi] = meshgrid(linspace(-1.2, 1.2, grid_res), linspace(-1.2, 1.2, grid_res));
-
-                        F = scatteredInterpolant(elec_x(:), elec_y(:), peakValues(:), 'natural', 'linear');
-                        zi = F(xi, yi);
-
-                        % Mask
-                        head_mask = sqrt(xi.^2 + yi.^2) <= 1.0;
-                        zi(~head_mask) = NaN;
-
-                        % Contour
-                        contourf(app.EpochTopoAxes, xi, yi, zi, 20, 'LineStyle', 'none');
-
-                        % Colormap
-                        colormap(app.EpochTopoAxes, 'jet');
-                        c = colorbar(app.EpochTopoAxes);
-                        c.Label.String = 'Amplitude (µV)';
-
-                        % Electrodes
-                        scatter(app.EpochTopoAxes, elec_x, elec_y, 20, 'k', 'filled');
+                    if length(elec_x) >= 3 && length(elec_x) == length(peakValues)
+                        % Simple scatter plot with electrode values
+                        scatter(axes, elec_x, elec_y, 30, peakValues(1:length(elec_x)), 'filled');
+                        colormap(axes, 'jet');
                     end
                 end
 
                 % Formatting
-                axis(app.EpochTopoAxes, 'equal');
-                app.EpochTopoAxes.XLim = [-1.3 1.3];
-                app.EpochTopoAxes.YLim = [-1.3 1.4];
-                app.EpochTopoAxes.XTick = [];
-                app.EpochTopoAxes.YTick = [];
-                title(app.EpochTopoAxes, sprintf('At %.0f ms (%s)', peakTime*1000, epochData.eventType), ...
-                    'FontSize', 11, 'FontWeight', 'bold');
+                axis(axes, 'equal', 'off');
+                xlim(axes, [-1.2 1.2]);
+                ylim(axes, [-1.2 1.2]);
+                title(axes, sprintf('%.0f ms', peakTime*1000), 'FontSize', 8);
+                hold(axes, 'off');
 
-                hold(app.EpochTopoAxes, 'off');
-
-            catch ME
-                warning('Failed to generate epoch topomap: %s', ME.message);
+            catch
+                % Silent fail for topomap
+                axis(axes, 'off');
             end
         end
+
     end
 end
