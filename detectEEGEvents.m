@@ -49,7 +49,7 @@ function eventInfo = detectEEGEvents(EEG)
                     continue;
                 end
 
-                % Handle different data types
+                % Handle different data types and ensure single string
                 if isnumeric(value)
                     % Convert scalar or vector to string
                     if isscalar(value)
@@ -58,14 +58,50 @@ function eventInfo = detectEEGEvents(EEG)
                         label = mat2str(value);
                     end
                 elseif ischar(value)
-                    label = value;
+                    % Flatten multi-row char arrays to single string
+                    if size(value, 1) > 1
+                        label = value(1, :);  % Take first row
+                    else
+                        label = value;
+                    end
                 elseif isstring(value)
-                    label = char(value);
+                    % Convert string to char, handling arrays
+                    if numel(value) > 1
+                        label = char(value(1));  % Take first element
+                    else
+                        label = char(value);
+                    end
                 elseif iscell(value)
                     % Handle cell arrays
                     if ~isempty(value)
-                        label = char(value{1});
+                        % Recursively handle the first cell element
+                        first_elem = value{1};
+                        if isnumeric(first_elem)
+                            label = num2str(first_elem);
+                        elseif ischar(first_elem)
+                            if size(first_elem, 1) > 1
+                                label = first_elem(1, :);
+                            else
+                                label = first_elem;
+                            end
+                        elseif isstring(first_elem)
+                            label = char(first_elem);
+                        else
+                            label = char(first_elem);
+                        end
                     end
+                end
+
+                % Final safety check: ensure label is a simple 1D char array
+                if ~isempty(label) && ~ischar(label)
+                    try
+                        label = char(label);
+                    catch
+                        label = '';
+                    end
+                end
+                if ischar(label) && size(label, 1) > 1
+                    label = label(1, :);  % Force to single row
                 end
 
                 if ~isempty(label)
@@ -80,6 +116,23 @@ function eventInfo = detectEEGEvents(EEG)
         end
 
         event_labels{i} = label;
+    end
+
+    % Validate all labels are simple strings before calling unique()
+    for i = 1:length(event_labels)
+        if ~ischar(event_labels{i})
+            fprintf('Warning: event_labels{%d} is not char, converting...\n', i);
+            try
+                event_labels{i} = char(event_labels{i});
+            catch
+                event_labels{i} = sprintf('Event_%d', i);
+            end
+        end
+        % Ensure single row
+        if size(event_labels{i}, 1) > 1
+            fprintf('Warning: event_labels{%d} has %d rows, flattening...\n', i, size(event_labels{i}, 1));
+            event_labels{i} = event_labels{i}(1, :);
+        end
     end
 
     % Count unique event types (use case-sensitive comparison)
