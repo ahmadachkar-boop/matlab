@@ -18,6 +18,9 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         FilenameLabel           matlab.ui.control.Label
         DurationLabel           matlab.ui.control.Label
         ChannelsLabel           matlab.ui.control.Label
+        EventsDetectedLabel     matlab.ui.control.Label
+        EventSelectionLabel     matlab.ui.control.Label
+        EventSelectionListBox   matlab.ui.control.ListBox
         StartButton             matlab.ui.control.Button
 
         % Processing Screen Components
@@ -67,6 +70,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         ProcessingStages        cell
         EventInfo               struct
         EpochedData             struct
+        SelectedEvents          cell
     end
 
     properties (Access = private)
@@ -184,30 +188,53 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             app.BrowseButton.FontColor = [1 1 1];
             app.BrowseButton.ButtonPushedFcn = @(btn,event) browseFile(app);
 
-            % File Info Panel (hidden initially)
+            % File Info Panel (hidden initially) - Taller to accommodate event selection
             app.FileInfoPanel = uipanel(app.UploadPanel);
-            app.FileInfoPanel.Position = [300 400 600 150];  % Moved up 200px
+            app.FileInfoPanel.Position = [200 250 800 380];  % Larger panel
             app.FileInfoPanel.BackgroundColor = [0.95 0.98 1];
             app.FileInfoPanel.BorderType = 'line';
             app.FileInfoPanel.Visible = 'off';
 
             % File info labels
             app.FilenameLabel = uilabel(app.FileInfoPanel);
-            app.FilenameLabel.Position = [20 100 560 25];
+            app.FilenameLabel.Position = [20 340 760 25];
             app.FilenameLabel.FontSize = 14;
             app.FilenameLabel.FontWeight = 'bold';
 
             app.DurationLabel = uilabel(app.FileInfoPanel);
-            app.DurationLabel.Position = [20 70 560 20];
+            app.DurationLabel.Position = [20 310 760 20];
             app.DurationLabel.FontSize = 12;
 
             app.ChannelsLabel = uilabel(app.FileInfoPanel);
-            app.ChannelsLabel.Position = [20 45 560 20];
+            app.ChannelsLabel.Position = [20 285 760 20];
             app.ChannelsLabel.FontSize = 12;
+
+            % Events detected label
+            app.EventsDetectedLabel = uilabel(app.FileInfoPanel);
+            app.EventsDetectedLabel.Position = [20 255 760 20];
+            app.EventsDetectedLabel.FontSize = 12;
+            app.EventsDetectedLabel.FontColor = [0.3 0.5 0.7];
+            app.EventsDetectedLabel.Visible = 'off';
+
+            % Event selection section (hidden initially, shown when events detected)
+            app.EventSelectionLabel = uilabel(app.FileInfoPanel);
+            app.EventSelectionLabel.Position = [20 225 760 25];
+            app.EventSelectionLabel.Text = '⚡ Select events to epoch around (multi-select with Ctrl/Cmd):';
+            app.EventSelectionLabel.FontSize = 13;
+            app.EventSelectionLabel.FontWeight = 'bold';
+            app.EventSelectionLabel.FontColor = [0.2 0.4 0.6];
+            app.EventSelectionLabel.Visible = 'off';
+
+            % Event selection listbox
+            app.EventSelectionListBox = uilistbox(app.FileInfoPanel);
+            app.EventSelectionListBox.Position = [20 70 760 150];
+            app.EventSelectionListBox.FontSize = 12;
+            app.EventSelectionListBox.Multiselect = 'on';
+            app.EventSelectionListBox.Visible = 'off';
 
             % Start Button
             app.StartButton = uibutton(app.FileInfoPanel, 'push');
-            app.StartButton.Position = [225 10 150 30];
+            app.StartButton.Position = [325 20 150 35];
             app.StartButton.Text = 'Start Analysis';
             app.StartButton.FontSize = 14;
             app.StartButton.BackgroundColor = [0.2 0.7 0.4];
@@ -588,6 +615,45 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                 app.DurationLabel.Text = sprintf('⏱️  Duration: %.1f seconds (%.1f minutes)', EEG.xmax, EEG.xmax/60);
                 app.ChannelsLabel.Text = sprintf('📊 Channels: %d', EEG.nbchan);
 
+                % Detect events
+                try
+                    app.EventInfo = detectEEGEvents(EEG);
+
+                    if app.EventInfo.hasEvents
+                        % Show event information
+                        app.EventsDetectedLabel.Text = sprintf('⚡ Events: %s', app.EventInfo.description);
+                        app.EventsDetectedLabel.Visible = 'on';
+
+                        % Populate event selection listbox
+                        eventItems = cell(length(app.EventInfo.eventTypes), 1);
+                        for i = 1:length(app.EventInfo.eventTypes)
+                            eventItems{i} = sprintf('%s (%d events)', ...
+                                app.EventInfo.eventTypes{i}, ...
+                                app.EventInfo.eventCounts(i));
+                        end
+                        app.EventSelectionListBox.Items = eventItems;
+                        app.EventSelectionListBox.ItemsData = app.EventInfo.eventTypes;
+
+                        % Select all events by default
+                        app.EventSelectionListBox.Value = app.EventInfo.eventTypes;
+
+                        % Show event selection UI
+                        app.EventSelectionLabel.Visible = 'on';
+                        app.EventSelectionListBox.Visible = 'on';
+                    else
+                        % No events detected - hide event UI
+                        app.EventsDetectedLabel.Visible = 'off';
+                        app.EventSelectionLabel.Visible = 'off';
+                        app.EventSelectionListBox.Visible = 'off';
+                    end
+                catch ME
+                    fprintf('Warning: Event detection failed: %s\n', ME.message);
+                    % Hide event UI if detection fails
+                    app.EventsDetectedLabel.Visible = 'off';
+                    app.EventSelectionLabel.Visible = 'off';
+                    app.EventSelectionListBox.Visible = 'off';
+                end
+
                 % Show file info panel
                 app.FileInfoPanel.Visible = 'on';
 
@@ -600,6 +666,18 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         end
 
         function startProcessing(app)
+            % Store selected events for epoching
+            if app.EventInfo.hasEvents && ~isempty(app.EventSelectionListBox.Value)
+                app.SelectedEvents = app.EventSelectionListBox.Value;
+                fprintf('User selected %d event type(s) for epoching:\n', length(app.SelectedEvents));
+                for i = 1:length(app.SelectedEvents)
+                    fprintf('  - %s\n', app.SelectedEvents{i});
+                end
+            else
+                app.SelectedEvents = {};
+                fprintf('No events selected for epoching\n');
+            end
+
             % Show processing screen
             showProcessingScreen(app);
 
@@ -1000,7 +1078,9 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
         function detectAndDisplayEvents(app)
             % Detect event markers in EEG data and populate event panel
+            % If events were already selected by user, automatically epoch them
             try
+                % Re-detect events on cleaned data (event timing may have changed after cleaning)
                 app.EventInfo = detectEEGEvents(app.EEGClean);
 
                 if app.EventInfo.hasEvents
@@ -1018,11 +1098,36 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                     end
                     app.EventListBox.Items = eventItems;
 
-                    % Select first two items by default (if available)
-                    if length(eventItems) >= 2
-                        app.EventListBox.Value = eventItems(1:2);
-                    elseif length(eventItems) == 1
-                        app.EventListBox.Value = eventItems{1};
+                    % If user pre-selected events, automatically analyze them
+                    if ~isempty(app.SelectedEvents)
+                        fprintf('\nAutomatically epoching around pre-selected events...\n');
+
+                        % Set the selection in the listbox to match user's choice
+                        matchingItems = {};
+                        for i = 1:length(app.SelectedEvents)
+                            for j = 1:length(app.EventInfo.eventTypes)
+                                if strcmp(app.SelectedEvents{i}, app.EventInfo.eventTypes{j})
+                                    matchingItems{end+1} = eventItems{j};
+                                    break;
+                                end
+                            end
+                        end
+
+                        if ~isempty(matchingItems)
+                            app.EventListBox.Value = matchingItems;
+
+                            % Automatically analyze these events
+                            analyzeSelectedEvents(app);
+                        else
+                            fprintf('Warning: Pre-selected events not found in cleaned data\n');
+                        end
+                    else
+                        % No pre-selection, select first two items by default
+                        if length(eventItems) >= 2
+                            app.EventListBox.Value = eventItems(1:2);
+                        elseif length(eventItems) == 1
+                            app.EventListBox.Value = eventItems{1};
+                        end
                     end
                 else
                     % Hide event panel if no events
