@@ -46,6 +46,18 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         ExportButton            matlab.ui.control.Button
         NewAnalysisButton       matlab.ui.control.Button
 
+        % Event Analysis Components
+        EventPanel              matlab.ui.container.Panel
+        EventInfoLabel          matlab.ui.control.Label
+        EventListBox            matlab.ui.control.ListBox
+        AnalyzeEventsButton     matlab.ui.control.Button
+        TimeWindowStart         matlab.ui.control.NumericEditField
+        TimeWindowEnd           matlab.ui.control.NumericEditField
+        EpochPanel              matlab.ui.container.Panel
+        ERPAxes                 matlab.ui.control.UIAxes
+        EpochTopoAxes           matlab.ui.control.UIAxes
+        EpochMetricsPanel       matlab.ui.container.Panel
+
         % Data
         EEGFile                 char
         EEG                     struct
@@ -53,6 +65,8 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         QualityMetrics          struct
         ClinicalMetrics         struct
         ProcessingStages        cell
+        EventInfo               struct
+        EpochedData             struct
     end
 
     properties (Access = private)
@@ -93,6 +107,9 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Create Results Panel
             createResultsPanel(app);
+
+            % Create Event Analysis Panel (hidden initially)
+            createEventPanel(app);
 
             % Center panels initially
             centerPanels(app);
@@ -401,6 +418,107 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             app.NewAnalysisButton.ButtonPushedFcn = @(btn,event) resetApp(app);
         end
 
+        function createEventPanel(app)
+            % Event Analysis Panel - appears between upload/processing info and results
+            app.EventPanel = uipanel(app.ResultsPanel);
+            app.EventPanel.Position = [50 2080 1100 200];  % Above results content
+            app.EventPanel.BackgroundColor = [0.98 0.99 1];
+            app.EventPanel.BorderType = 'line';
+            app.EventPanel.Title = '📊 Event-Based Analysis Available';
+            app.EventPanel.FontSize = 13;
+            app.EventPanel.FontWeight = 'bold';
+            app.EventPanel.Visible = 'off';  % Hidden until events detected
+
+            % Event Info Label
+            app.EventInfoLabel = uilabel(app.EventPanel);
+            app.EventInfoLabel.Position = [20 150 1060 30];
+            app.EventInfoLabel.Text = 'Event markers detected in your data!';
+            app.EventInfoLabel.FontSize = 12;
+            app.EventInfoLabel.FontWeight = 'bold';
+            app.EventInfoLabel.FontColor = [0.2 0.5 0.7];
+
+            % Instructions
+            instrLabel = uilabel(app.EventPanel);
+            instrLabel.Position = [20 125 1060 20];
+            instrLabel.Text = 'Select one or more event types below to analyze epochs separately (e.g., Go vs No-Go trials):';
+            instrLabel.FontSize = 11;
+            instrLabel.FontColor = [0.3 0.4 0.5];
+
+            % Event List Box
+            app.EventListBox = uilistbox(app.EventPanel);
+            app.EventListBox.Position = [20 40 300 80];
+            app.EventListBox.Items = {};
+            app.EventListBox.Multiselect = 'on';
+            app.EventListBox.FontSize = 10;
+
+            % Time Window Labels and Fields
+            twLabel = uilabel(app.EventPanel);
+            twLabel.Position = [340 95 120 20];
+            twLabel.Text = 'Epoch Window:';
+            twLabel.FontSize = 11;
+            twLabel.FontWeight = 'bold';
+
+            startLabel = uilabel(app.EventPanel);
+            startLabel.Position = [340 70 80 20];
+            startLabel.Text = 'Start (s):';
+            startLabel.FontSize = 10;
+
+            app.TimeWindowStart = uieditfield(app.EventPanel, 'numeric');
+            app.TimeWindowStart.Position = [420 68 80 22];
+            app.TimeWindowStart.Value = -0.2;
+            app.TimeWindowStart.Limits = [-5 0];
+
+            endLabel = uilabel(app.EventPanel);
+            endLabel.Position = [340 40 80 20];
+            endLabel.Text = 'End (s):';
+            endLabel.FontSize = 10;
+
+            app.TimeWindowEnd = uieditfield(app.EventPanel, 'numeric');
+            app.TimeWindowEnd.Position = [420 38 80 22];
+            app.TimeWindowEnd.Value = 0.8;
+            app.TimeWindowEnd.Limits = [0 5];
+
+            % Analyze Button
+            app.AnalyzeEventsButton = uibutton(app.EventPanel, 'push');
+            app.AnalyzeEventsButton.Position = [530 40 180 80];
+            app.AnalyzeEventsButton.Text = '🔍 Analyze Selected Events';
+            app.AnalyzeEventsButton.FontSize = 12;
+            app.AnalyzeEventsButton.FontWeight = 'bold';
+            app.AnalyzeEventsButton.BackgroundColor = [0.2 0.6 0.8];
+            app.AnalyzeEventsButton.FontColor = [1 1 1];
+            app.AnalyzeEventsButton.ButtonPushedFcn = @(btn,event) analyzeSelectedEvents(app);
+
+            % Epoch Results Panel (hidden until analysis complete)
+            app.EpochPanel = uipanel(app.ResultsPanel);
+            app.EpochPanel.Position = [50 1650 1100 400];  % Below event panel
+            app.EpochPanel.BackgroundColor = [1 1 1];
+            app.EpochPanel.BorderType = 'line';
+            app.EpochPanel.Title = 'Event-Related Potentials (ERP)';
+            app.EpochPanel.FontSize = 13;
+            app.EpochPanel.FontWeight = 'bold';
+            app.EpochPanel.Visible = 'off';
+
+            % ERP Axes (time-domain average)
+            app.ERPAxes = uiaxes(app.EpochPanel);
+            app.ERPAxes.Position = [30 50 500 300];
+            title(app.ERPAxes, 'Average ERP Waveform', 'FontSize', 12);
+            xlabel(app.ERPAxes, 'Time (s)');
+            ylabel(app.ERPAxes, 'Amplitude (µV)');
+
+            % Epoch Topographic Map (average at peak latency)
+            app.EpochTopoAxes = uiaxes(app.EpochPanel);
+            app.EpochTopoAxes.Position = [570 50 250 300];
+            title(app.EpochTopoAxes, 'Topography at Peak', 'FontSize', 12);
+
+            % Epoch Metrics Panel
+            app.EpochMetricsPanel = uipanel(app.EpochPanel);
+            app.EpochMetricsPanel.Position = [850 50 230 300];
+            app.EpochMetricsPanel.BackgroundColor = [0.95 0.98 1];
+            app.EpochMetricsPanel.BorderType = 'line';
+            app.EpochMetricsPanel.Title = 'Epoch Statistics';
+            app.EpochMetricsPanel.FontSize = 11;
+        end
+
         function initializeApp(app)
             % Initialize processing stages
             app.ProcessingStages = {
@@ -677,6 +795,9 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                 app.QualityScoreLabel.Text = 'Quality Score: Calculating...';
             end
 
+            % Detect and display event information
+            detectAndDisplayEvents(app);
+
             % Generate visualizations if clean
             if isfield(metrics, 'is_clean') && metrics.is_clean
                 generateVisualizations(app);
@@ -875,6 +996,280 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Show upload screen
             showUploadScreen(app);
+        end
+
+        function detectAndDisplayEvents(app)
+            % Detect event markers in EEG data and populate event panel
+            try
+                app.EventInfo = detectEEGEvents(app.EEGClean);
+
+                if app.EventInfo.hasEvents
+                    % Show event panel
+                    app.EventPanel.Visible = 'on';
+
+                    % Update event info label
+                    app.EventInfoLabel.Text = sprintf('✓ %s', app.EventInfo.description);
+
+                    % Populate event listbox
+                    eventItems = cell(length(app.EventInfo.eventTypes), 1);
+                    for i = 1:length(app.EventInfo.eventTypes)
+                        eventItems{i} = sprintf('%s (%d trials)', ...
+                            app.EventInfo.eventTypes{i}, app.EventInfo.eventCounts(i));
+                    end
+                    app.EventListBox.Items = eventItems;
+
+                    % Select first two items by default (if available)
+                    if length(eventItems) >= 2
+                        app.EventListBox.Value = eventItems(1:2);
+                    elseif length(eventItems) == 1
+                        app.EventListBox.Value = eventItems{1};
+                    end
+                else
+                    % Hide event panel if no events
+                    app.EventPanel.Visible = 'off';
+                    app.EpochPanel.Visible = 'off';
+                end
+            catch ME
+                warning('Event detection failed: %s', ME.message);
+                app.EventPanel.Visible = 'off';
+                app.EpochPanel.Visible = 'off';
+            end
+        end
+
+        function analyzeSelectedEvents(app)
+            % Epoch data around selected events and display results
+            try
+                % Get selected event types
+                selectedItems = app.EventListBox.Value;
+                if isempty(selectedItems)
+                    uialert(app.UIFigure, 'Please select at least one event type', 'No Selection');
+                    return;
+                end
+
+                % Extract event type names (remove count suffix)
+                selectedTypes = cell(length(selectedItems), 1);
+                for i = 1:length(selectedItems)
+                    % Parse "EventName (123 trials)" to get "EventName"
+                    tokens = regexp(selectedItems{i}, '(.*) \(\d+ trials\)', 'tokens');
+                    if ~isempty(tokens)
+                        selectedTypes{i} = tokens{1}{1};
+                    else
+                        selectedTypes{i} = selectedItems{i};
+                    end
+                end
+
+                % Get time window
+                timeWindow = [app.TimeWindowStart.Value, app.TimeWindowEnd.Value];
+
+                % Epoch the data
+                fprintf('\n=== Event-Based Analysis ===\n');
+                app.EpochedData = epochEEGByEvents(app.EEGClean, selectedTypes, timeWindow);
+
+                % Show epoch panel
+                app.EpochPanel.Visible = 'on';
+
+                % Generate epoch visualizations
+                generateEpochVisualizations(app);
+
+            catch ME
+                uialert(app.UIFigure, sprintf('Error during epoch analysis: %s', ME.message), ...
+                    'Analysis Error');
+                fprintf('Error: %s\n', ME.message);
+            end
+        end
+
+        function generateEpochVisualizations(app)
+            % Generate ERP and epoch visualizations
+            try
+                cla(app.ERPAxes);
+                cla(app.EpochTopoAxes);
+                delete(app.EpochMetricsPanel.Children);
+
+                hold(app.ERPAxes, 'on');
+
+                % Define colors for different event types
+                colors = [0.2 0.4 0.8; 0.8 0.2 0.2; 0.2 0.8 0.2; 0.8 0.6 0.2; 0.6 0.2 0.8];
+
+                legendEntries = {};
+
+                % Plot ERP for each event type
+                for i = 1:length(app.EpochedData)
+                    epochData = app.EpochedData(i);
+
+                    if isempty(epochData.avgERP)
+                        continue;
+                    end
+
+                    % Plot average ERP from central channel (or channel with largest response)
+                    avgERP = epochData.avgERP;
+                    [~, maxChan] = max(max(abs(avgERP), [], 2));
+
+                    timeVec = epochData.timeVector;
+                    erpWave = avgERP(maxChan, :);
+
+                    % Plot main line
+                    color = colors(mod(i-1, size(colors, 1)) + 1, :);
+                    plot(app.ERPAxes, timeVec, erpWave, 'LineWidth', 2, 'Color', color);
+
+                    % Add shaded error band if std is available
+                    if isfield(epochData, 'stdERP') && ~isempty(epochData.stdERP)
+                        stdWave = epochData.stdERP(maxChan, :);
+                        fill(app.ERPAxes, [timeVec, fliplr(timeVec)], ...
+                            [erpWave + stdWave, fliplr(erpWave - stdWave)], ...
+                            color, 'FaceAlpha', 0.2, 'EdgeColor', 'none');
+                    end
+
+                    legendEntries{end+1} = sprintf('%s (n=%d)', epochData.eventType, epochData.numEpochs);
+                end
+
+                % Add zero line and event marker
+                yLimits = ylim(app.ERPAxes);
+                plot(app.ERPAxes, [0 0], yLimits, 'k--', 'LineWidth', 1);
+                plot(app.ERPAxes, xlim(app.ERPAxes), [0 0], 'k:', 'LineWidth', 0.5);
+
+                % Formatting
+                xlabel(app.ERPAxes, 'Time (s)', 'FontSize', 11);
+                ylabel(app.ERPAxes, 'Amplitude (µV)', 'FontSize', 11);
+                title(app.ERPAxes, 'Event-Related Potentials (ERP)', 'FontSize', 12, 'FontWeight', 'bold');
+                grid(app.ERPAxes, 'on');
+                legend(app.ERPAxes, legendEntries, 'Location', 'best', 'FontSize', 9);
+
+                hold(app.ERPAxes, 'off');
+
+                % Display metrics for each event type
+                yPos = 250;
+                for i = 1:length(app.EpochedData)
+                    epochData = app.EpochedData(i);
+
+                    if isempty(epochData.metrics)
+                        continue;
+                    end
+
+                    % Event type label
+                    typeLabel = uilabel(app.EpochMetricsPanel);
+                    typeLabel.Position = [10 yPos 210 20];
+                    typeLabel.Text = sprintf('📌 %s', epochData.eventType);
+                    typeLabel.FontSize = 10;
+                    typeLabel.FontWeight = 'bold';
+                    color = colors(mod(i-1, size(colors, 1)) + 1, :);
+                    typeLabel.FontColor = color;
+                    yPos = yPos - 25;
+
+                    % Metrics
+                    metrics = epochData.metrics;
+
+                    metricsText = {
+                        sprintf('Epochs: %d/%d good', metrics.good_epochs, metrics.num_epochs)
+                        sprintf('SNR: %.1f dB', metrics.mean_snr_db)
+                        sprintf('Amplitude: %.1f µV', metrics.mean_p2p_amplitude)
+                    };
+
+                    for m = 1:length(metricsText)
+                        metricLabel = uilabel(app.EpochMetricsPanel);
+                        metricLabel.Position = [20 yPos 190 18];
+                        metricLabel.Text = metricsText{m};
+                        metricLabel.FontSize = 9;
+                        metricLabel.FontColor = [0.3 0.4 0.5];
+                        yPos = yPos - 20;
+                    end
+
+                    yPos = yPos - 10;  % Space between event types
+                end
+
+                % Generate topographic map at peak latency (for first event type)
+                if ~isempty(app.EpochedData) && ~isempty(app.EpochedData(1).avgERP)
+                    generateEpochTopoMap(app, 1);
+                end
+
+            catch ME
+                warning('Failed to generate epoch visualizations: %s', ME.message);
+                text(app.ERPAxes, 0.5, 0.5, 'Visualization failed', ...
+                    'Units', 'normalized', 'HorizontalAlignment', 'center');
+            end
+        end
+
+        function generateEpochTopoMap(app, eventIdx)
+            % Generate topographic map at peak latency for selected event type
+            try
+                cla(app.EpochTopoAxes);
+                hold(app.EpochTopoAxes, 'on');
+
+                epochData = app.EpochedData(eventIdx);
+                avgERP = epochData.avgERP;
+                timeVec = epochData.timeVector;
+
+                % Find peak latency (global max absolute amplitude)
+                [~, peakSample] = max(max(abs(avgERP), [], 1));
+                peakTime = timeVec(peakSample);
+                peakValues = avgERP(:, peakSample);
+
+                % Draw head outline
+                theta = linspace(0, 2*pi, 100);
+                plot(app.EpochTopoAxes, cos(theta), sin(theta), 'k', 'LineWidth', 2);
+
+                % Nose
+                plot(app.EpochTopoAxes, [0.15, 0, -0.15], [1, 1.15, 1], 'k', 'LineWidth', 2);
+
+                % Get electrode positions
+                if isfield(app.EEGClean, 'chanlocs') && ~isempty(app.EEGClean.chanlocs)
+                    elec_x = [];
+                    elec_y = [];
+
+                    for ch = 1:app.EEGClean.nbchan
+                        if isfield(app.EEGClean.chanlocs, 'X') && ~isempty(app.EEGClean.chanlocs(ch).X)
+                            X = app.EEGClean.chanlocs(ch).X;
+                            Y = app.EEGClean.chanlocs(ch).Y;
+                            Z = app.EEGClean.chanlocs(ch).Z;
+
+                            if ~isempty(Z)
+                                radius = sqrt(X^2 + Y^2 + Z^2);
+                                if radius > 0
+                                    elec_x(end+1) = Y / radius;
+                                    elec_y(end+1) = X / radius;
+                                end
+                            end
+                        end
+                    end
+
+                    if length(elec_x) >= 3
+                        % Interpolate
+                        grid_res = 80;
+                        [xi, yi] = meshgrid(linspace(-1.2, 1.2, grid_res), linspace(-1.2, 1.2, grid_res));
+
+                        F = scatteredInterpolant(elec_x(:), elec_y(:), peakValues(:), 'natural', 'linear');
+                        zi = F(xi, yi);
+
+                        % Mask
+                        head_mask = sqrt(xi.^2 + yi.^2) <= 1.0;
+                        zi(~head_mask) = NaN;
+
+                        % Contour
+                        contourf(app.EpochTopoAxes, xi, yi, zi, 20, 'LineStyle', 'none');
+
+                        % Colormap
+                        colormap(app.EpochTopoAxes, 'jet');
+                        c = colorbar(app.EpochTopoAxes);
+                        c.Label.String = 'Amplitude (µV)';
+
+                        % Electrodes
+                        scatter(app.EpochTopoAxes, elec_x, elec_y, 20, 'k', 'filled');
+                    end
+                end
+
+                % Formatting
+                axis(app.EpochTopoAxes, 'equal');
+                app.EpochTopoAxes.XLim = [-1.3 1.3];
+                app.EpochTopoAxes.YLim = [-1.3 1.4];
+                app.EpochTopoAxes.XTick = [];
+                app.EpochTopoAxes.YTick = [];
+                title(app.EpochTopoAxes, sprintf('At %.0f ms (%s)', peakTime*1000, epochData.eventType), ...
+                    'FontSize', 11, 'FontWeight', 'bold');
+
+                hold(app.EpochTopoAxes, 'off');
+
+            catch ME
+                warning('Failed to generate epoch topomap: %s', ME.message);
+            end
         end
     end
 end
