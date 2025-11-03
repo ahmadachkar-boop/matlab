@@ -1262,7 +1262,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                     row = floor((i-1) / colsPerRow);
                     col = mod(i-1, colsPerRow);
                     xPos = 20 + col * colWidth;
-                    yPos = 520 - row * 270;  % Stack rows vertically
+                    yPos = 120 - row * 270;  % Stack rows vertically (adjusted for 400px panel height)
 
                     % Create column panel for this event
                     eventPanel = uipanel(app.EpochPanel);
