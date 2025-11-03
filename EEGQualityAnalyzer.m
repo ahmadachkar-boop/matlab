@@ -598,10 +598,10 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             % This will be dynamically populated with side-by-side event comparisons
             % Position at BOTTOM of results for easy visibility
             app.EpochPanel = uipanel(app.ResultsPanel);
-            app.EpochPanel.Position = [50 50 1100 400];  % At bottom of screen for easy viewing
+            app.EpochPanel.Position = [50 50 1100 750];  % Expanded for detailed visualizations
             app.EpochPanel.BackgroundColor = [1 1 1];
             app.EpochPanel.BorderType = 'line';
-            app.EpochPanel.Title = '⚡ Event-Related Potentials - Side-by-Side Comparison';
+            app.EpochPanel.Title = '⚡ Event-Related Potentials - Detailed Analysis';
             app.EpochPanel.FontSize = 13;
             app.EpochPanel.FontWeight = 'bold';
             app.EpochPanel.Visible = 'off';
@@ -1225,7 +1225,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         end
 
         function generateEpochVisualizations(app)
-            % Generate side-by-side ERP visualizations for easy comparison
+            % Generate comprehensive ERP visualizations with detailed analysis
             try
                 % Clear any previous visualizations
                 if ~isempty(app.EventColumns)
@@ -1245,12 +1245,12 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                 % Define colors for different event types
                 colors = [0.2 0.4 0.8; 0.8 0.2 0.2; 0.2 0.8 0.2; 0.8 0.6 0.2; 0.6 0.2 0.8];
 
-                % Calculate column width based on number of events (max 4 columns)
-                colsPerRow = min(numEvents, 4);
-                colWidth = floor((1100 - 40) / colsPerRow);  % Total width minus margins
+                % Calculate column width based on number of events (max 3 columns for detailed view)
+                colsPerRow = min(numEvents, 3);
+                colWidth = floor((1100 - 40) / colsPerRow);
                 numRows = ceil(numEvents / colsPerRow);
 
-                % Create a column for each event type
+                % Create a detailed panel for each event type
                 for i = 1:numEvents
                     epochData = app.EpochedData(i);
 
@@ -1262,84 +1262,161 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                     row = floor((i-1) / colsPerRow);
                     col = mod(i-1, colsPerRow);
                     xPos = 20 + col * colWidth;
-                    yPos = 120 - row * 270;  % Stack rows vertically (adjusted for 400px panel height)
+                    yPos = 720 - row * 730;  % Stack rows vertically with spacing
 
                     % Create column panel for this event
                     eventPanel = uipanel(app.EpochPanel);
-                    eventPanel.Position = [xPos yPos colWidth-10 260];
+                    eventPanel.Position = [xPos yPos colWidth-10 700];
                     eventPanel.BackgroundColor = [0.98 0.99 1];
                     eventPanel.BorderType = 'line';
 
-                    % Event type header
                     color = colors(mod(i-1, size(colors, 1)) + 1, :);
+
+                    % === HEADER ===
                     headerLabel = uilabel(eventPanel);
-                    headerLabel.Position = [5 235 colWidth-20 20];
-                    headerLabel.Text = sprintf('📌 %s (n=%d)', epochData.eventType, epochData.numEpochs);
+                    headerLabel.Position = [5 675 colWidth-20 20];
+                    headerLabel.Text = sprintf('📌 %s (n=%d epochs)', epochData.eventType, epochData.numEpochs);
                     headerLabel.FontSize = 11;
                     headerLabel.FontWeight = 'bold';
                     headerLabel.FontColor = color;
                     headerLabel.HorizontalAlignment = 'center';
 
-                    % ERP plot
-                    erpAxes = uiaxes(eventPanel);
-                    erpAxes.Position = [10 120 colWidth-30 105];
-
-                    % Plot average ERP from channel with largest response
                     avgERP = epochData.avgERP;
-                    [~, maxChan] = max(max(abs(avgERP), [], 2));
-
                     timeVec = epochData.timeVector;
-                    erpWave = avgERP(maxChan, :);
 
-                    hold(erpAxes, 'on');
-                    plot(erpAxes, timeVec, erpWave, 'LineWidth', 2, 'Color', color);
+                    % === MULTI-CHANNEL ERP PLOTS (2x2 grid) ===
+                    % Find top 4 channels with strongest responses
+                    channelPower = max(abs(avgERP), [], 2);
+                    [~, topChans] = sort(channelPower, 'descend');
+                    topChans = topChans(1:min(4, length(topChans)));
 
-                    % Add shaded error band if std is available
-                    if isfield(epochData, 'stdERP') && ~isempty(epochData.stdERP)
-                        stdWave = epochData.stdERP(maxChan, :);
-                        fill(erpAxes, [timeVec, fliplr(timeVec)], ...
-                            [erpWave + stdWave, fliplr(erpWave - stdWave)], ...
-                            color, 'FaceAlpha', 0.2, 'EdgeColor', 'none');
+                    for ch = 1:min(4, length(topChans))
+                        chRow = floor((ch-1) / 2);
+                        chCol = mod(ch-1, 2);
+                        axW = (colWidth-30) / 2 - 5;
+                        axH = 90;
+                        axX = 10 + chCol * (axW + 5);
+                        axY = 565 - chRow * (axH + 5);
+
+                        erpAxes = uiaxes(eventPanel);
+                        erpAxes.Position = [axX axY axW axH];
+
+                        chanIdx = topChans(ch);
+                        erpWave = avgERP(chanIdx, :);
+
+                        hold(erpAxes, 'on');
+                        plot(erpAxes, timeVec, erpWave, 'LineWidth', 1.5, 'Color', color);
+
+                        % Add std error band
+                        if isfield(epochData, 'stdERP') && ~isempty(epochData.stdERP)
+                            stdWave = epochData.stdERP(chanIdx, :);
+                            fill(erpAxes, [timeVec, fliplr(timeVec)], ...
+                                [erpWave + stdWave, fliplr(erpWave - stdWave)], ...
+                                color, 'FaceAlpha', 0.15, 'EdgeColor', 'none');
+                        end
+
+                        % Reference lines
+                        plot(erpAxes, [0 0], ylim(erpAxes), 'k--', 'LineWidth', 0.5);
+                        plot(erpAxes, xlim(erpAxes), [0 0], 'k:', 'LineWidth', 0.5);
+
+                        % Label channel
+                        chanLabel = 'Ch';
+                        if isfield(app.EEGClean, 'chanlocs') && chanIdx <= length(app.EEGClean.chanlocs)
+                            if isfield(app.EEGClean.chanlocs, 'labels') && ~isempty(app.EEGClean.chanlocs(chanIdx).labels)
+                                chanLabel = app.EEGClean.chanlocs(chanIdx).labels;
+                            end
+                        end
+                        title(erpAxes, chanLabel, 'FontSize', 8, 'FontWeight', 'bold');
+
+                        if chRow == 1
+                            xlabel(erpAxes, 'Time (s)', 'FontSize', 7);
+                        end
+                        if chCol == 0
+                            ylabel(erpAxes, 'µV', 'FontSize', 7);
+                        end
+                        grid(erpAxes, 'on');
+                        erpAxes.FontSize = 7;
+                        hold(erpAxes, 'off');
                     end
 
-                    % Add zero line and event marker
-                    yLimits = ylim(erpAxes);
-                    plot(erpAxes, [0 0], yLimits, 'k--', 'LineWidth', 1);
-                    plot(erpAxes, xlim(erpAxes), [0 0], 'k:', 'LineWidth', 0.5);
+                    % === BUTTERFLY PLOT (all channels) ===
+                    butterflyAxes = uiaxes(eventPanel);
+                    butterflyAxes.Position = [10 425 colWidth-30 130];
 
-                    xlabel(erpAxes, 'Time (s)', 'FontSize', 9);
-                    ylabel(erpAxes, 'µV', 'FontSize', 9);
-                    grid(erpAxes, 'on');
-                    hold(erpAxes, 'off');
+                    hold(butterflyAxes, 'on');
+                    for ch = 1:size(avgERP, 1)
+                        plot(butterflyAxes, timeVec, avgERP(ch, :), 'Color', [0.5 0.5 0.5 0.3], 'LineWidth', 0.5);
+                    end
+                    % Highlight max channel
+                    [~, maxChan] = max(max(abs(avgERP), [], 2));
+                    plot(butterflyAxes, timeVec, avgERP(maxChan, :), 'Color', color, 'LineWidth', 2);
 
-                    % Metrics below ERP
-                    metricsY = 95;
+                    plot(butterflyAxes, [0 0], ylim(butterflyAxes), 'k--', 'LineWidth', 1);
+                    plot(butterflyAxes, xlim(butterflyAxes), [0 0], 'k:', 'LineWidth', 0.5);
+
+                    xlabel(butterflyAxes, 'Time (s)', 'FontSize', 8);
+                    ylabel(butterflyAxes, 'µV', 'FontSize', 8);
+                    title(butterflyAxes, 'Butterfly Plot (All Channels)', 'FontSize', 9, 'FontWeight', 'bold');
+                    grid(butterflyAxes, 'on');
+                    butterflyAxes.FontSize = 7;
+                    hold(butterflyAxes, 'off');
+
+                    % === POWER SPECTRUM ===
+                    psdAxes = uiaxes(eventPanel);
+                    psdAxes.Position = [10 265 colWidth-30 150];
+
+                    generatePowerSpectrum(app, psdAxes, epochData, color);
+
+                    % === TOPOMAPS AT DIFFERENT LATENCIES ===
+                    numTopomaps = 4;
+                    topoWidth = (colWidth-30) / numTopomaps - 5;
+
+                    % Find key time points
+                    epochDuration = timeVec(end) - timeVec(1);
+                    keyTimes = [0.25 0.4 0.6 0.8] * epochDuration + timeVec(1);
+
+                    for t = 1:numTopomaps
+                        topoAxes = uiaxes(eventPanel);
+                        topoX = 10 + (t-1) * (topoWidth + 5);
+                        topoAxes.Position = [topoX 155 topoWidth 100];
+
+                        targetTime = keyTimes(t);
+                        [~, timeIdx] = min(abs(timeVec - targetTime));
+
+                        generateTopoMapAtTime(app, topoAxes, epochData, timeIdx, color);
+                    end
+
+                    % === EXPANDED METRICS ===
+                    metricsY = 135;
                     if ~isempty(epochData.metrics)
                         metrics = epochData.metrics;
 
+                        % Calculate additional metrics
+                        [peakAmp, peakIdx] = max(max(abs(avgERP), [], 1));
+                        peakLatency = timeVec(peakIdx) * 1000; % in ms
+
+                        meanBaseline = mean(mean(abs(avgERP(:, 1:min(10, length(timeVec))))));
+
                         metricsText = {
-                            sprintf('Epochs: %d/%d', metrics.good_epochs, metrics.num_epochs)
-                            sprintf('SNR: %.1f dB', metrics.mean_snr_db)
-                            sprintf('Amp: %.1f µV', metrics.mean_p2p_amplitude)
+                            sprintf('✓ Good Epochs: %d/%d (%.1f%%)', metrics.good_epochs, metrics.num_epochs, 100*metrics.good_epochs/metrics.num_epochs)
+                            sprintf('📊 SNR: %.1f dB', metrics.mean_snr_db)
+                            sprintf('📈 Peak Amp: %.2f µV @ %.0f ms', peakAmp, peakLatency)
+                            sprintf('⚡ P2P Amp: %.2f µV', metrics.mean_p2p_amplitude)
+                            sprintf('📉 Baseline: %.2f µV', meanBaseline)
+                            sprintf('⏱ Duration: %.2f s', epochDuration)
                         };
+
+                        metricsText = metricsText(1:min(6, length(metricsText)));
 
                         for m = 1:length(metricsText)
                             metricLabel = uilabel(eventPanel);
-                            metricLabel.Position = [10 metricsY colWidth-20 16];
+                            metricLabel.Position = [10 metricsY-m*20 colWidth-20 18];
                             metricLabel.Text = metricsText{m};
-                            metricLabel.FontSize = 9;
-                            metricLabel.FontColor = [0.3 0.4 0.5];
-                            metricLabel.HorizontalAlignment = 'center';
-                            metricsY = metricsY - 18;
+                            metricLabel.FontSize = 8;
+                            metricLabel.FontColor = [0.2 0.3 0.4];
+                            metricLabel.HorizontalAlignment = 'left';
                         end
                     end
-
-                    % Topographic map at peak latency
-                    topoAxes = uiaxes(eventPanel);
-                    topoAxes.Position = [10 5 colWidth-30 40];
-
-                    % Generate mini topomap for this event
-                    generateMiniTopoMap(app, topoAxes, epochData);
 
                     % Store panel reference
                     app.EventColumns{end+1} = eventPanel;
@@ -1347,6 +1424,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             catch ME
                 warning('Failed to generate epoch visualizations: %s', ME.message);
+                fprintf('Error details: %s\n', ME.message);
             end
         end
 
@@ -1406,6 +1484,155 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             catch
                 % Silent fail for topomap
                 axis(axes, 'off');
+            end
+        end
+
+        function generatePowerSpectrum(app, axes, epochData, color)
+            % Generate power spectral density plot for epoch data
+            try
+                cla(axes);
+                hold(axes, 'on');
+
+                avgERP = epochData.avgERP;
+
+                % Compute PSD across all channels using FFT
+                nfft = 2^nextpow2(size(avgERP, 2));
+                freqs = (0:nfft/2-1) * (app.EEGClean.srate / nfft);
+
+                % Calculate PSD for each channel
+                psdAll = zeros(size(avgERP, 1), nfft/2);
+                for ch = 1:size(avgERP, 1)
+                    fftData = fft(avgERP(ch, :), nfft);
+                    psdAll(ch, :) = abs(fftData(1:nfft/2)).^2;
+                end
+
+                % Average across channels
+                avgPSD = mean(psdAll, 1);
+
+                % Plot in log scale (convert to dB)
+                psdDB = 10*log10(avgPSD + eps);
+
+                % Limit to 0-50 Hz for typical EEG
+                maxFreqIdx = find(freqs <= 50, 1, 'last');
+                if isempty(maxFreqIdx)
+                    maxFreqIdx = length(freqs);
+                end
+
+                plot(axes, freqs(1:maxFreqIdx), psdDB(1:maxFreqIdx), 'Color', color, 'LineWidth', 1.5);
+
+                % Add frequency band shading
+                deltaRange = freqs >= 1 & freqs <= 4;
+                thetaRange = freqs >= 4 & freqs <= 8;
+                alphaRange = freqs >= 8 & freqs <= 13;
+                betaRange = freqs >= 13 & freqs <= 30;
+
+                % Light background shading for bands
+                yLim = ylim(axes);
+                if any(deltaRange)
+                    patch(axes, [freqs(deltaRange), fliplr(freqs(deltaRange))], ...
+                        [repmat(yLim(1), 1, sum(deltaRange)), repmat(yLim(2), 1, sum(deltaRange))], ...
+                        [0.9 0.95 1], 'FaceAlpha', 0.2, 'EdgeColor', 'none');
+                end
+
+                xlabel(axes, 'Frequency (Hz)', 'FontSize', 8);
+                ylabel(axes, 'Power (dB)', 'FontSize', 8);
+                title(axes, 'Power Spectral Density', 'FontSize', 9, 'FontWeight', 'bold');
+                grid(axes, 'on');
+                axes.FontSize = 7;
+                xlim(axes, [0 50]);
+                hold(axes, 'off');
+
+            catch
+                % Silent fail
+                axis(axes, 'off');
+                text(axes, 0.5, 0.5, 'PSD unavailable', 'HorizontalAlignment', 'center');
+            end
+        end
+
+        function generateTopoMapAtTime(app, axes, epochData, timeIdx, color)
+            % Generate topographic map at specific time index
+            try
+                cla(axes);
+                hold(axes, 'on');
+
+                avgERP = epochData.avgERP;
+                timeVec = epochData.timeVector;
+
+                timeValue = timeVec(timeIdx);
+                amplitudeValues = avgERP(:, timeIdx);
+
+                % Draw simple head outline
+                theta = linspace(0, 2*pi, 100);
+                plot(axes, cos(theta)*0.9, sin(theta)*0.9, 'k', 'LineWidth', 1);
+
+                % Add nose
+                noseX = [0, -0.15, 0.15, 0];
+                noseY = [0.9, 1.1, 1.1, 0.9];
+                plot(axes, noseX, noseY, 'k', 'LineWidth', 1);
+
+                % Get electrode positions
+                if isfield(app.EEGClean, 'chanlocs') && ~isempty(app.EEGClean.chanlocs)
+                    elec_x = [];
+                    elec_y = [];
+                    validAmps = [];
+
+                    for ch = 1:min(length(amplitudeValues), app.EEGClean.nbchan)
+                        if isfield(app.EEGClean.chanlocs, 'X') && ~isempty(app.EEGClean.chanlocs(ch).X)
+                            X = app.EEGClean.chanlocs(ch).X;
+                            Y = app.EEGClean.chanlocs(ch).Y;
+                            Z = app.EEGClean.chanlocs(ch).Z;
+
+                            if ~isempty(Z)
+                                radius = sqrt(X^2 + Y^2 + Z^2);
+                                if radius > 0
+                                    elec_x(end+1) = Y / radius * 0.8;
+                                    elec_y(end+1) = X / radius * 0.8;
+                                    validAmps(end+1) = amplitudeValues(ch);
+                                end
+                            end
+                        end
+                    end
+
+                    if length(elec_x) >= 3
+                        % Create interpolated topomap
+                        gridRes = 50;
+                        [gridX, gridY] = meshgrid(linspace(-1, 1, gridRes), linspace(-1, 1, gridRes));
+
+                        % Only interpolate inside head circle
+                        headMask = sqrt(gridX.^2 + gridY.^2) <= 0.9;
+
+                        if length(elec_x) >= 3
+                            try
+                                % Interpolate values
+                                gridZ = griddata(elec_x, elec_y, validAmps, gridX, gridY, 'cubic');
+                                gridZ(~headMask) = NaN;
+
+                                % Plot contour
+                                contourf(axes, gridX, gridY, gridZ, 20, 'LineStyle', 'none');
+                                colormap(axes, 'jet');
+                            catch
+                                % Fallback to scatter if interpolation fails
+                                scatter(axes, elec_x, elec_y, 40, validAmps, 'filled');
+                                colormap(axes, 'jet');
+                            end
+                        end
+
+                        % Plot electrode positions as black dots
+                        scatter(axes, elec_x, elec_y, 15, 'k', 'filled');
+                    end
+                end
+
+                % Formatting
+                axis(axes, 'equal', 'off');
+                xlim(axes, [-1.2 1.2]);
+                ylim(axes, [-1.2 1.2]);
+                title(axes, sprintf('%.0f ms', timeValue*1000), 'FontSize', 8, 'FontWeight', 'bold');
+                hold(axes, 'off');
+
+            catch
+                % Silent fail for topomap
+                axis(axes, 'off');
+                text(axes, 0.5, 0.5, 'N/A', 'HorizontalAlignment', 'center');
             end
         end
 
