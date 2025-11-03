@@ -596,8 +596,9 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Epoch Results Panel (hidden until analysis complete)
             % This will be dynamically populated with side-by-side event comparisons
+            % Position at BOTTOM of results for easy visibility
             app.EpochPanel = uipanel(app.ResultsPanel);
-            app.EpochPanel.Position = [50 1500 1100 550];  % Taller for side-by-side layout
+            app.EpochPanel.Position = [50 50 1100 400];  % At bottom of screen for easy viewing
             app.EpochPanel.BackgroundColor = [1 1 1];
             app.EpochPanel.BorderType = 'line';
             app.EpochPanel.Title = '⚡ Event-Related Potentials - Side-by-Side Comparison';
@@ -1161,6 +1162,9 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             try
                 % Re-detect events on cleaned data
                 app.EventInfo = detectEEGEvents(app.EEGClean);
+
+                % Hide the old EventPanel (not used in marker-pair system)
+                app.EventPanel.Visible = 'off';
 
                 % If user defined epoch pairs, analyze them automatically
                 if app.EventInfo.hasEvents && ~isempty(app.EpochDefinitions)
