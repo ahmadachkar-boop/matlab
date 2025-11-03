@@ -411,21 +411,21 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         function createResultsPanel(app)
             % Main Results Panel - Extended height for scrollable content
             app.ResultsPanel = uipanel(app.UIFigure);
-            app.ResultsPanel.Position = [1 1 1200 1600];  % Increased height for all content
+            app.ResultsPanel.Position = [1 1 1200 2000];  % Increased height for all content including detailed epochs
             app.ResultsPanel.BackgroundColor = [0.95 0.96 0.97];
             app.ResultsPanel.BorderType = 'none';
             app.ResultsPanel.Visible = 'off';
 
             % Status Icon
             app.ResultsStatusIcon = uilabel(app.ResultsPanel);
-            app.ResultsStatusIcon.Position = [550 1500 100 60];  % Top
+            app.ResultsStatusIcon.Position = [550 1900 100 60];  % Top (moved up)
             app.ResultsStatusIcon.Text = '✅';
             app.ResultsStatusIcon.FontSize = 48;
             app.ResultsStatusIcon.HorizontalAlignment = 'center';
 
             % Status Label
             app.ResultsStatusLabel = uilabel(app.ResultsPanel);
-            app.ResultsStatusLabel.Position = [200 1440 800 40];  % Below icon
+            app.ResultsStatusLabel.Position = [200 1840 800 40];  % Below icon (moved up)
             app.ResultsStatusLabel.Text = 'EEG quality is sufficient for clinical interpretation';
             app.ResultsStatusLabel.FontSize = 22;
             app.ResultsStatusLabel.FontWeight = 'bold';
@@ -434,7 +434,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Quality Score
             app.QualityScoreLabel = uilabel(app.ResultsPanel);
-            app.QualityScoreLabel.Position = [400 1390 400 35];  % Below status
+            app.QualityScoreLabel.Position = [400 1790 400 35];  % Below status (moved up)
             app.QualityScoreLabel.Text = 'Quality Score: 85/100';
             app.QualityScoreLabel.FontSize = 18;
             app.QualityScoreLabel.FontColor = [0.3 0.4 0.5];
@@ -442,7 +442,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Quality Visualization Panel (top section)
             app.VisualizationPanel = uipanel(app.ResultsPanel);
-            app.VisualizationPanel.Position = [50 1000 1100 370];  % Below score
+            app.VisualizationPanel.Position = [50 1400 1100 370];  % Below score (moved up)
             app.VisualizationPanel.BackgroundColor = [1 1 1];
             app.VisualizationPanel.BorderType = 'line';
             app.VisualizationPanel.Title = 'Signal Quality Assessment';
@@ -471,7 +471,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             % Clinical Visualization Panel (middle section) - With bar chart
             app.ClinicalPanel = uipanel(app.ResultsPanel);
-            app.ClinicalPanel.Position = [50 480 1100 490];  % Below quality panel, positive Y
+            app.ClinicalPanel.Position = [50 880 1100 490];  % Below quality panel, above epochs
             app.ClinicalPanel.BackgroundColor = [1 1 1];
             app.ClinicalPanel.BorderType = 'line';
             app.ClinicalPanel.Title = 'Clinical Diagnostics';
