@@ -64,8 +64,12 @@ function epochedData = epochEEGByMarkerPairs(EEG, epochDefinitions)
         epochLengths = zeros(size(epochPairs, 1), 1);
 
         for e = 1:size(epochPairs, 1)
-            startSample = epochPairs(e, 1);
-            endSample = epochPairs(e, 2);
+            startSample = round(epochPairs(e, 1));  % Ensure integer
+            endSample = round(epochPairs(e, 2));    % Ensure integer
+
+            % Ensure indices are within bounds
+            startSample = max(1, startSample);
+            endSample = min(EEG.pnts, endSample);
 
             % Extract data
             epochData = EEG.data(:, startSample:endSample);
@@ -74,8 +78,8 @@ function epochedData = epochEEGByMarkerPairs(EEG, epochDefinitions)
         end
 
         % Find common length (minimum) for averaging
-        minLength = min(epochLengths);
-        maxLength = max(epochLengths);
+        minLength = round(min(epochLengths));  % Ensure integer
+        maxLength = round(max(epochLengths));  % Ensure integer
 
         fprintf('    Epoch lengths: min=%.3fs, max=%.3fs, mean=%.3fs\n', ...
             minLength/EEG.srate, maxLength/EEG.srate, mean(epochLengths)/EEG.srate);
