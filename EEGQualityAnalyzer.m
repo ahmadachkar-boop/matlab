@@ -698,7 +698,9 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                 [~, ~, ext] = fileparts(app.EEGFile);
 
                 if strcmp(ext, '.mff')
-                    EEG = pop_mffimport(app.EEGFile, {'code'});
+                    % Import MFF with ALL event fields (not just 'code')
+                    % This allows user to choose which event field to use later
+                    EEG = pop_mffimport(app.EEGFile, {});
                 elseif strcmp(ext, '.set')
                     EEG = pop_loadset(app.EEGFile);
                 elseif strcmp(ext, '.edf')
