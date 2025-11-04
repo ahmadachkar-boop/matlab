@@ -89,11 +89,15 @@ function response = callClaudeAPI(prompt)
         matlab.net.http.HeaderField('content-type', 'application/json')];
 
     % Prepare request body
-    % Note: Use single curly braces for cell array, not double
+    % CRITICAL: messages must be a cell array to encode as JSON array
+    % Using struct() in a cell creates a struct, not a cell array!
+    % Solution: Create the message struct separately, then wrap in cell
+    message = struct('role', 'user', 'content', prompt);
+
     body = struct(...
         'model', 'claude-3-5-sonnet-20241022', ...
         'max_tokens', 4096, ...
-        'messages', {struct('role', 'user', 'content', prompt)});
+        'messages', {{message}});  % Double braces to keep as cell array!
 
     % Make the request
     try
@@ -143,14 +147,13 @@ function response = callOpenAIAPI(prompt)
         matlab.net.http.HeaderField('content-type', 'application/json')];
 
     % Prepare request body
-    % Note: Use single curly braces for cell array, not double
-    messages = [...
-        struct('role', 'system', 'content', 'You are an expert EEG data analyst. Respond only with valid JSON.'), ...
-        struct('role', 'user', 'content', prompt)];
+    % CRITICAL: messages must be a cell array to encode as JSON array
+    msg1 = struct('role', 'system', 'content', 'You are an expert EEG data analyst. Respond only with valid JSON.');
+    msg2 = struct('role', 'user', 'content', prompt);
 
     body = struct(...
         'model', 'gpt-4-turbo-preview', ...
-        'messages', messages, ...
+        'messages', {{msg1, msg2}}, ...  % Double braces to keep as cell array!
         'temperature', 0.3, ...
         'response_format', struct('type', 'json_object'));
 
