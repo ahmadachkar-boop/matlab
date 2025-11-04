@@ -17,11 +17,26 @@ function [selectedEventTypes, structure, discovery] = autoSelectTrialEventsUnive
 %   'GroupBy'      - Override auto-detected grouping fields
 %   'ExcludePractice' - Exclude practice trials (default: true)
 %   'Display'      - Show summary table (default: true)
+%   'UseAI'        - Use AI analysis ('auto', 'always', 'never', default: 'auto')
+%   'AIProvider'   - AI provider ('claude' or 'openai', default: 'claude')
 %
 % Outputs:
 %   selectedEventTypes - Cell array of grouped condition labels
 %   structure - Detected event structure information
 %   discovery - Discovered field information
+%
+% Examples:
+%   % Basic usage (AI auto-enabled for low confidence)
+%   selectedEvents = autoSelectTrialEventsUniversal(EEG);
+%
+%   % Always use AI
+%   selectedEvents = autoSelectTrialEventsUniversal(EEG, 'UseAI', 'always');
+%
+%   % Never use AI (heuristics only)
+%   selectedEvents = autoSelectTrialEventsUniversal(EEG, 'UseAI', 'never');
+%
+%   % Use OpenAI instead of Claude
+%   selectedEvents = autoSelectTrialEventsUniversal(EEG, 'AIProvider', 'openai');
 
     % Parse inputs
     p = inputParser;
@@ -30,12 +45,16 @@ function [selectedEventTypes, structure, discovery] = autoSelectTrialEventsUnive
     addParameter(p, 'GroupBy', {}, @(x) iscellstr(x) || isempty(x));
     addParameter(p, 'ExcludePractice', true, @islogical);
     addParameter(p, 'Display', true, @islogical);
+    addParameter(p, 'UseAI', 'auto', @ischar);
+    addParameter(p, 'AIProvider', 'claude', @ischar);
     parse(p, EEG, varargin{:});
 
     conditions = p.Results.Conditions;
     groupByOverride = p.Results.GroupBy;
     excludePractice = p.Results.ExcludePractice;
     displayResults = p.Results.Display;
+    useAI = p.Results.UseAI;
+    aiProvider = p.Results.AIProvider;
 
     fprintf('\n========================================\n');
     fprintf('UNIVERSAL AUTO-EVENT SELECTION\n');
@@ -50,8 +69,8 @@ function [selectedEventTypes, structure, discovery] = autoSelectTrialEventsUnive
         structure.eventPattern = 'EVNT_TRSP';  % Fallback for your data
     end
 
-    %% PHASE 2: Discover and analyze fields
-    discovery = discoverEventFields(EEG, structure);
+    %% PHASE 2: Discover and analyze fields (with optional AI)
+    discovery = discoverEventFields(EEG, structure, 'UseAI', useAI, 'AIProvider', aiProvider);
 
     if isempty(discovery.groupingFields)
         warning('No grouping fields auto-detected. Events may not have structured metadata.');

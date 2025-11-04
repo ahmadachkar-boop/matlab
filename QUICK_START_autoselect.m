@@ -7,6 +7,7 @@
 %   ✓ Auto-detects event structure (brackets, fields, delimiters, codes)
 %   ✓ Auto-discovers available fields and grouping variables
 %   ✓ Auto-excludes trial-specific metadata (trial#, response time, etc.)
+%   ✓ Optional AI-powered analysis for intelligent field classification
 %   ✓ Works with your current data AND any future datasets
 %
 % Just update the file path below and run this script!
@@ -35,6 +36,21 @@ doPreprocessing = false;  % Set to true to enable filtering
 %    Leave empty {} to use automatic detection
 %    Example: {'Cond', 'Code', 'Verb'} to group by these specific fields
 overrideGroupBy = {};  % <-- Usually leave this empty!
+
+% 6. 🤖 AI-POWERED ANALYSIS (Optional - requires API key)
+%    AI provides intelligent field classification for ambiguous cases
+%    Options:
+%      'auto'   - Use AI only when heuristic confidence < 70% (default)
+%      'always' - Always use AI for enhanced analysis
+%      'never'  - Never use AI (heuristics only, free and fast)
+useAI = 'auto';  % <-- Set to 'always' to always use AI, 'never' to disable
+
+% 7. AI Provider (if using AI)
+%    Options: 'claude' (default) or 'openai'
+%    Requires environment variable:
+%      - For Claude: setenv('ANTHROPIC_API_KEY', 'your-key')
+%      - For OpenAI: setenv('OPENAI_API_KEY', 'your-key')
+aiProvider = 'claude';  % <-- Change to 'openai' if preferred
 
 %% ========== SCRIPT STARTS HERE (NO NEED TO EDIT BELOW) ==========
 
@@ -66,7 +82,15 @@ catch ME
 end
 
 %% Step 2: Universal auto-selection (detects format automatically)
-fprintf('[Step 2/5] Running universal auto-detection...\n\n');
+fprintf('[Step 2/5] Running universal auto-detection...\n');
+if strcmp(useAI, 'always')
+    fprintf('  🤖 AI mode: ALWAYS (enhanced analysis)\n');
+elseif strcmp(useAI, 'auto')
+    fprintf('  🤖 AI mode: AUTO (triggered for low confidence cases)\n');
+else
+    fprintf('  🤖 AI mode: NEVER (heuristics only)\n');
+end
+fprintf('\n');
 
 % Build options
 selectOptions = {};
@@ -77,7 +101,10 @@ if ~isempty(overrideGroupBy)
     selectOptions = [selectOptions, 'GroupBy', {overrideGroupBy}];
 end
 
-% Call universal auto-selection
+% Add AI parameters
+selectOptions = [selectOptions, 'UseAI', useAI, 'AIProvider', aiProvider];
+
+% Call universal auto-selection (with AI if enabled)
 [selectedEvents, structure, discovery] = autoSelectTrialEventsUniversal(EEG, selectOptions{:});
 
 if isempty(selectedEvents)

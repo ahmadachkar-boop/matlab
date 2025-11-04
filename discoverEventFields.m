@@ -1,4 +1,4 @@
-function discovery = discoverEventFields(EEG, structure)
+function discovery = discoverEventFields(EEG, structure, varargin)
 % DISCOVEREVENTFIELDS - Automatically discover and analyze event fields
 %
 % This function scans all events to find available fields, their values,
@@ -9,6 +9,13 @@ function discovery = discoverEventFields(EEG, structure)
 %   EEG - EEGLAB EEG structure
 %   structure - Output from detectEventStructure()
 %
+% Optional Name-Value Pairs:
+%   'UseAI' - Use AI for intelligent analysis ('auto', 'always', 'never')
+%             'auto' = use AI only if heuristic confidence < 0.7 (default)
+%             'always' = always use AI
+%             'never' = never use AI (heuristics only)
+%   'AIProvider' - AI provider to use ('claude' or 'openai', default: 'claude')
+%
 % Outputs:
 %   discovery - Struct containing:
 %     .fields - Cell array of field names
@@ -17,6 +24,17 @@ function discovery = discoverEventFields(EEG, structure)
 %     .excludeFields - Fields to exclude (trial-specific)
 %     .practicePatterns - Auto-detected practice trial patterns
 %     .valueMappings - Auto-detected value mappings (e.g., y->word)
+%     .confidence - Confidence in classification (0-1)
+%     .usedAI - Boolean indicating if AI was used
+
+    % Parse optional inputs
+    p = inputParser;
+    addParameter(p, 'UseAI', 'auto', @ischar);
+    addParameter(p, 'AIProvider', 'claude', @ischar);
+    parse(p, varargin{:});
+
+    useAIMode = p.Results.UseAI;
+    aiProvider = p.Results.AIProvider;
 
     discovery = struct();
     discovery.fields = {};
@@ -199,13 +217,119 @@ function discovery = discoverEventFields(EEG, structure)
         {'Prac', 'PracSlow', 'Practice', 'Training', '_a_', '_s_', '_w_', '_s1_'}];
     discovery.practicePatterns = unique(discovery.practicePatterns);
 
-    fprintf('Recommendations:\n');
+    % Calculate heuristic confidence
+    heuristicConfidence = calculateHeuristicConfidence(discovery);
+    discovery.confidence = heuristicConfidence;
+    discovery.usedAI = false;
+
+    % Display heuristic recommendations
+    fprintf('Heuristic Recommendations:\n');
     fprintf('  Group by: %s\n', strjoin(discovery.groupingFields, ', '));
     fprintf('  Exclude: %s\n', strjoin(discovery.excludeFields, ', '));
     if ~isempty(discovery.practicePatterns)
         fprintf('  Practice patterns: %s\n', strjoin(discovery.practicePatterns(1:min(5, end)), ', '));
     end
+    fprintf('  Confidence: %.0f%%\n', heuristicConfidence * 100);
+
+    % Decide whether to use AI
+    useAI = false;
+    if strcmp(useAIMode, 'always')
+        useAI = true;
+        fprintf('  → AI analysis requested (mode: always)\n');
+    elseif strcmp(useAIMode, 'auto')
+        if heuristicConfidence < 0.7
+            useAI = true;
+            fprintf('  → Low confidence detected. Using AI analysis...\n');
+        elseif length(discovery.groupingFields) > 3
+            useAI = true;
+            fprintf('  → Many grouping fields detected. Using AI to refine...\n');
+        end
+    end
+
     fprintf('======================================\n\n');
+
+    % AI Integration
+    if useAI
+        try
+            % Call AI analysis
+            aiAnalysis = callAIAnalysis(discovery.fieldStats, structure, aiProvider);
+
+            % Merge AI recommendations with heuristic results
+            fprintf('=== MERGING AI RECOMMENDATIONS ===\n');
+            fprintf('Heuristic grouping: %s\n', strjoin(discovery.groupingFields, ', '));
+            fprintf('AI grouping:        %s\n', strjoin(aiAnalysis.grouping_fields, ', '));
+
+            % Use AI recommendations if confidence is higher
+            if aiAnalysis.confidence >= heuristicConfidence
+                fprintf('✓ Using AI recommendations (higher confidence)\n');
+                discovery.groupingFields = aiAnalysis.grouping_fields;
+                discovery.excludeFields = union(discovery.excludeFields, aiAnalysis.exclude_fields);
+                discovery.confidence = aiAnalysis.confidence;
+                discovery.usedAI = true;
+                discovery.aiAnalysis = aiAnalysis;
+
+                % Apply AI value mappings if available
+                if isfield(aiAnalysis, 'value_mappings')
+                    mappingFields = fieldnames(aiAnalysis.value_mappings);
+                    for i = 1:length(mappingFields)
+                        fieldName = mappingFields{i};
+                        discovery.valueMappings.(fieldName) = aiAnalysis.value_mappings.(fieldName);
+                    end
+                end
+            else
+                fprintf('ℹ AI confidence (%.0f%%) lower than heuristic (%.0f%%). Keeping heuristic results.\n', ...
+                        aiAnalysis.confidence * 100, heuristicConfidence * 100);
+                discovery.aiAnalysis = aiAnalysis;  % Store for reference
+            end
+
+            fprintf('======================================\n\n');
+
+        catch ME
+            warning('AI analysis failed: %s', ME.message);
+            fprintf('Continuing with heuristic results.\n\n');
+        end
+    end
+
+    % Final recommendations
+    fprintf('=== FINAL RECOMMENDATIONS ===\n');
+    fprintf('Group by: %s\n', strjoin(discovery.groupingFields, ', '));
+    fprintf('Exclude: %s\n', strjoin(discovery.excludeFields, ', '));
+    fprintf('Confidence: %.0f%%\n', discovery.confidence * 100);
+    if discovery.usedAI
+        fprintf('Source: AI-enhanced analysis (%s)\n', aiProvider);
+    else
+        fprintf('Source: Heuristic analysis\n');
+    end
+    fprintf('======================================\n\n');
+end
+
+
+function confidence = calculateHeuristicConfidence(discovery)
+    % Calculate confidence score for heuristic classification
+
+    % Base confidence
+    confidence = 0.5;
+
+    % Boost if we found clear grouping fields
+    if ~isempty(discovery.groupingFields)
+        confidence = confidence + 0.2;
+    end
+
+    % Boost if grouping fields have good cardinality (2-3 fields is ideal)
+    numGrouping = length(discovery.groupingFields);
+    if numGrouping >= 2 && numGrouping <= 3
+        confidence = confidence + 0.2;
+    elseif numGrouping > 3
+        confidence = confidence - 0.1;  % Too many = less confident
+    end
+
+    % Boost if we excluded trial-specific fields
+    if ~isempty(discovery.excludeFields)
+        confidence = confidence + 0.1;
+    end
+
+    % Cap at 0-1
+    confidence = max(0, min(1, confidence));
 end
 
 
