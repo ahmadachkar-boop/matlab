@@ -403,23 +403,8 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 EEG_original_meta.chanlocs = EEG.chanlocs;
             end
 
-            % Stage 2: Filtering & Preprocessing
-            updateProgress(app, 2, 'Filtering & Preprocessing...');
-            params.resample_rate = 250;
-            params.hp_cutoff = 0.5;
-            params.lp_cutoff = 50;
-            params.notch_freq = 60;
-
-            EEG = pop_resample(EEG, params.resample_rate);
-            EEG = pop_eegfiltnew(EEG, 'locutoff', params.hp_cutoff, 'plotfreqz', 0);
-            EEG = pop_eegfiltnew(EEG, 'hicutoff', params.lp_cutoff, 'plotfreqz', 0);
-            EEG = pop_eegfiltnew(EEG, 'locutoff', params.notch_freq-2, 'hicutoff', params.notch_freq+2, 'revfilt', 1, 'plotfreqz', 0);
-            EEG = pop_reref(EEG, []);
-
-            % Stage 3: Artifact Detection
-            updateProgress(app, 3, 'Detecting Artifacts...');
-
             % Bad channel detection (identify but DON'T remove - user request)
+            % MUST be done on RAW data BEFORE filtering/re-referencing
             % Optimized: Manually compute kurtosis (100x faster than pop_rejchan)
             badChans = [];
             badChanLabels = {};
@@ -438,6 +423,22 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             catch
                 % If detection fails, continue without bad channel info
             end
+
+            % Stage 2: Filtering & Preprocessing
+            updateProgress(app, 2, 'Filtering & Preprocessing...');
+            params.resample_rate = 250;
+            params.hp_cutoff = 0.5;
+            params.lp_cutoff = 50;
+            params.notch_freq = 60;
+
+            EEG = pop_resample(EEG, params.resample_rate);
+            EEG = pop_eegfiltnew(EEG, 'locutoff', params.hp_cutoff, 'plotfreqz', 0);
+            EEG = pop_eegfiltnew(EEG, 'hicutoff', params.lp_cutoff, 'plotfreqz', 0);
+            EEG = pop_eegfiltnew(EEG, 'locutoff', params.notch_freq-2, 'hicutoff', params.notch_freq+2, 'revfilt', 1, 'plotfreqz', 0);
+            EEG = pop_reref(EEG, []);
+
+            % Stage 3: Artifact Detection (ICA)
+            updateProgress(app, 3, 'Running ICA...');
 
             % Run ICA - Using Picard for 5-10x speedup over runica
             % With PCA dimensionality reduction to handle rank deficiency
