@@ -441,16 +441,18 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             % Run ICA - Using Picard for 5-10x speedup over runica
             try
-                % Check if picard is available
-                if exist('pop_picard', 'file')
-                    EEG = pop_picard(EEG, 'maxiter', 500);
+                % Check if picard is available (correct function name: eeg_picard)
+                if exist('eeg_picard', 'file')
+                    EEG = eeg_picard(EEG, 'maxiter', 500);
                 else
                     % Fallback to runica if picard not installed
                     warning('Picard ICA not found, using runica (slower). Install picard plugin for faster processing.');
                     EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1);
                 end
-            catch
-                % Skip ICA if it fails
+            catch ME
+                % If picard fails, fall back to runica
+                warning('Picard ICA failed (%s), using runica instead.', ME.message);
+                EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1);
             end
 
             % Stage 4: Cleaning Signal
