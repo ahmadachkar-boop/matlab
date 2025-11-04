@@ -95,7 +95,7 @@ function response = callClaudeAPI(prompt)
     message = struct('role', 'user', 'content', prompt);
 
     body = struct(...
-        'model', 'claude-3-5-sonnet-20240620', ...  % Correct model version
+        'model', 'claude-sonnet-4-20250514', ...  % Updated to Claude Sonnet 4
         'max_tokens', 4096, ...
         'messages', {{message}});  % Double braces to keep as cell array!
 
@@ -111,7 +111,18 @@ function response = callClaudeAPI(prompt)
 
         % Extract content from response
         if isfield(result, 'content') && ~isempty(result.content)
-            response = result.content{1}.text;
+            % Handle both cell array and struct array formats
+            if iscell(result.content)
+                response = result.content{1}.text;
+            elseif isstruct(result.content)
+                if isfield(result.content, 'text')
+                    response = result.content(1).text;
+                else
+                    error('Unexpected content structure');
+                end
+            else
+                error('Unexpected content type: %s', class(result.content));
+            end
         else
             error('Unexpected API response structure');
         end
