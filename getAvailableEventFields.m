@@ -22,8 +22,8 @@ function [fieldNames, fieldInfo] = getAvailableEventFields(EEG)
 
     events = EEG.event;
 
-    % Common event field names to check
-    commonFields = {'labels', 'label', 'code', 'type', 'name', 'description', 'value'};
+    % Common event field names to check (prioritize singular 'label' before plural 'labels')
+    commonFields = {'label', 'code', 'type', 'labels', 'name', 'description', 'value'};
 
     % Check which fields exist and have non-empty values
     for i = 1:length(commonFields)

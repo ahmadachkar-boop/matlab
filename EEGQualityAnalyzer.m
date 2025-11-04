@@ -699,19 +699,10 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                 [~, ~, ext] = fileparts(app.EEGFile);
 
                 if strcmp(ext, '.mff')
-                    % Import MFF with ALL event types
-                    % List all common event field names to ensure everything is imported
-                    eventTypes = {'code', 'label', 'labels', 'type', 'name', 'description', 'value', ...
-                                  'keys', 'mffkeys', 'sourceDevice', 'duration', 'beginTime', 'eventType'};
-                    try
-                        % Try importing with all specified event types
-                        EEG = pop_mffimport(app.EEGFile, eventTypes);
-                        fprintf('MFF imported with event types: %s\n', strjoin(eventTypes, ', '));
-                    catch ME
-                        fprintf('Warning: Could not import with all event types (%s), trying default import\n', ME.message);
-                        % Fall back to default import if that fails
-                        EEG = pop_mffimport(app.EEGFile);
-                    end
+                    % Import MFF with default settings (imports all available fields)
+                    % Don't specify event types as it can cause errors if fields don't exist
+                    EEG = pop_mffimport(app.EEGFile);
+                    fprintf('MFF imported with default settings (all available event fields)\n');
                 elseif strcmp(ext, '.set')
                     EEG = pop_loadset(app.EEGFile);
                 elseif strcmp(ext, '.edf')

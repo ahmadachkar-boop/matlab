@@ -43,7 +43,8 @@ function eventInfo = detectEEGEvents(EEG, preferredField)
     if ~isempty(preferredField)
         type_fields = {preferredField};
     else
-        type_fields = {'type', 'code', 'label', 'labels', 'name', 'description'};
+        % Prioritize singular 'label' before plural 'labels' (matches getAvailableEventFields)
+        type_fields = {'label', 'code', 'type', 'labels', 'name', 'description'};
     end
 
     event_labels = cell(1, length(events));
