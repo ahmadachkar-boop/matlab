@@ -476,8 +476,18 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 try
                     EEG = pop_iclabel(EEG, 'default');
 
-                    % Auto-flag artifact components (exact thresholds from launchEEGAnalyzer)
-                    EEG = pop_icflag(EEG, [0 0; 0.9 1; 0.9 1; 0.9 1; 0.9 1; 0.9 1; 0 0]);
+                    % Auto-flag artifact components with standard thresholds
+                    % ICLabel categories: [Brain, Muscle, Eye, Heart, LineNoise, ChanNoise, Other]
+                    % Thresholds: [min max] for each category
+                    % More aggressive thresholds (70-80%) for better artifact removal:
+                    % - Brain: keep all (0 0)
+                    % - Muscle: remove if >70% (helps with high-frequency artifacts)
+                    % - Eye: remove if >80% (blinks, saccades)
+                    % - Heart: remove if >80% (ECG artifacts)
+                    % - Line noise: remove if >70% (helps clean PSD spikes at 60Hz harmonics)
+                    % - Channel noise: remove if >80% (bad channels, discontinuities)
+                    % - Other: keep all (0 0)
+                    EEG = pop_icflag(EEG, [0 0; 0.7 1; 0.8 1; 0.8 1; 0.7 1; 0.8 1; 0 0]);
 
                     % Remove flagged components
                     bad_comps = find(EEG.reject.gcompreject);
