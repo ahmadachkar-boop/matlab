@@ -1,9 +1,12 @@
-function eventInfo = detectEEGEvents(EEG, preferredField)
+function eventInfo = detectEEGEvents(EEG, preferredField, varargin)
     % DETECTEEGEVENTS - Detect and categorize event markers in EEG data
     %
     % Input:
     %   EEG - EEG structure
     %   preferredField - (Optional) Preferred event field to use ('type', 'code', 'label', etc.)
+    %   varargin - Optional name-value pairs:
+    %     'FilterPattern' - Pattern to filter event types (e.g., 'EVNT_TRSP')
+    %     'FilterConditions' - Cell array of condition codes to filter (e.g., {'SG23', 'SKG1'})
     %
     % Output:
     %   eventInfo - Structure containing:
@@ -14,11 +17,28 @@ function eventInfo = detectEEGEvents(EEG, preferredField)
     %     .events - Original event structure
     %     .description - Human-readable description
     %     .fieldUsed - The field that was used for event types
+    %     .filterApplied - Boolean, true if filter was applied
+    %     .numFiltered - Number of events after filtering
+    %
+    % Example:
+    %   % Filter only EVNT_TRSP events with specific conditions
+    %   eventInfo = detectEEGEvents(EEG, 'type', 'FilterPattern', 'EVNT_TRSP', ...
+    %                               'FilterConditions', {'SG23', 'SKG1', 'KG1'});
 
-    % Handle optional parameter
-    if nargin < 2
+    % Handle optional parameters
+    if nargin < 2 || isempty(preferredField)
         preferredField = '';
     end
+
+    % Parse optional filtering parameters
+    p = inputParser;
+    addParameter(p, 'FilterPattern', '', @(x) ischar(x) || isstring(x));
+    addParameter(p, 'FilterConditions', {}, @(x) iscellstr(x) || isstring(x));
+    parse(p, varargin{:});
+
+    filterPattern = p.Results.FilterPattern;
+    filterConditions = p.Results.FilterConditions;
+    applyFilter = ~isempty(filterPattern) || ~isempty(filterConditions);
 
     eventInfo = struct();
     eventInfo.hasEvents = false;
@@ -28,6 +48,8 @@ function eventInfo = detectEEGEvents(EEG, preferredField)
     eventInfo.events = [];
     eventInfo.description = 'No events detected';
     eventInfo.fieldUsed = '';
+    eventInfo.filterApplied = applyFilter;
+    eventInfo.numFiltered = 0;
 
     % Check if EEG has events
     if ~isfield(EEG, 'event') || isempty(EEG.event)
@@ -194,6 +216,60 @@ function eventInfo = detectEEGEvents(EEG, preferredField)
     % Sort by count (descending)
     [counts_sorted, sort_idx] = sort(counts, 'descend');
     unique_types_sorted = unique_types(sort_idx);
+
+    % Apply filtering if requested
+    if applyFilter
+        fprintf('\nApplying filters...\n');
+        if ~isempty(filterPattern)
+            fprintf('  Pattern filter: "%s"\n', filterPattern);
+        end
+        if ~isempty(filterConditions)
+            fprintf('  Condition filter: %s\n', strjoin(filterConditions, ', '));
+        end
+
+        filterMask = false(length(unique_types_sorted), 1);
+
+        for i = 1:length(unique_types_sorted)
+            eventType = unique_types_sorted{i};
+            matchesPattern = false;
+            matchesCondition = false;
+
+            % Check pattern
+            if ~isempty(filterPattern)
+                matchesPattern = contains(eventType, filterPattern, 'IgnoreCase', true);
+            end
+
+            % Check conditions
+            if ~isempty(filterConditions)
+                for j = 1:length(filterConditions)
+                    if contains(eventType, filterConditions{j}, 'IgnoreCase', true)
+                        matchesCondition = true;
+                        break;
+                    end
+                end
+            end
+
+            % Include if matches pattern OR conditions (if both specified, must match both)
+            if ~isempty(filterPattern) && ~isempty(filterConditions)
+                % Both filters: must match both
+                filterMask(i) = matchesPattern && matchesCondition;
+            elseif ~isempty(filterPattern)
+                % Only pattern filter
+                filterMask(i) = matchesPattern;
+            elseif ~isempty(filterConditions)
+                % Only condition filter
+                filterMask(i) = matchesCondition;
+            end
+        end
+
+        % Apply filter
+        unique_types_sorted = unique_types_sorted(filterMask);
+        counts_sorted = counts_sorted(filterMask);
+
+        eventInfo.numFiltered = sum(counts_sorted);
+        fprintf('  Filtered: %d event types, %d total events\n', ...
+            length(unique_types_sorted), eventInfo.numFiltered);
+    end
 
     eventInfo.hasEvents = true;
     eventInfo.eventTypes = unique_types_sorted;
