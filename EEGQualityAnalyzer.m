@@ -699,9 +699,19 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                 [~, ~, ext] = fileparts(app.EEGFile);
 
                 if strcmp(ext, '.mff')
-                    % Import MFF with ALL event fields (not just 'code')
-                    % This allows user to choose which event field to use later
-                    EEG = pop_mffimport(app.EEGFile, {});
+                    % Import MFF with ALL event types
+                    % List all common event field names to ensure everything is imported
+                    eventTypes = {'code', 'label', 'labels', 'type', 'name', 'description', 'value', ...
+                                  'keys', 'mffkeys', 'sourceDevice', 'duration', 'beginTime', 'eventType'};
+                    try
+                        % Try importing with all specified event types
+                        EEG = pop_mffimport(app.EEGFile, eventTypes);
+                        fprintf('MFF imported with event types: %s\n', strjoin(eventTypes, ', '));
+                    catch ME
+                        fprintf('Warning: Could not import with all event types (%s), trying default import\n', ME.message);
+                        % Fall back to default import if that fails
+                        EEG = pop_mffimport(app.EEGFile);
+                    end
                 elseif strcmp(ext, '.set')
                     EEG = pop_loadset(app.EEGFile);
                 elseif strcmp(ext, '.edf')
@@ -717,6 +727,15 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                 app.FilenameLabel.Text = sprintf('📁 %s%s', name, ext);
                 app.DurationLabel.Text = sprintf('⏱️  Duration: %.1f seconds (%.1f minutes)', EEG.xmax, EEG.xmax/60);
                 app.ChannelsLabel.Text = sprintf('📊 Channels: %d', EEG.nbchan);
+
+                % Debug: Print actual event structure fields
+                if isfield(EEG, 'event') && ~isempty(EEG.event)
+                    fprintf('\n=== Event Structure Fields ===\n');
+                    fprintf('Total events in file: %d\n', length(EEG.event));
+                    eventFields = fieldnames(EEG.event);
+                    fprintf('Fields present in event structure: %s\n', strjoin(eventFields, ', '));
+                    fprintf('===============================\n\n');
+                end
 
                 % Detect available event fields
                 try
