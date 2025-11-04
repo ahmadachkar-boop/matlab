@@ -73,9 +73,9 @@ function eventInfo = detectEEGEvents(EEG, preferredField)
                 elseif ischar(value)
                     % Flatten multi-row char arrays to single string
                     if size(value, 1) > 1
-                        label = value(1, :);  % Take first row
+                        label = strtrim(value(1, :));  % Take first row and trim
                     else
-                        label = value;
+                        label = strtrim(value);  % Trim whitespace
                     end
                 elseif isstring(value)
                     % Convert string to char, handling arrays
@@ -135,17 +135,11 @@ function eventInfo = detectEEGEvents(EEG, preferredField)
         event_labels{i} = label;
     end
 
-    % Validate all labels are simple strings before calling unique()
-    % Debug: print all label info
-    fprintf('\nValidating %d event labels before unique():\n', length(event_labels));
+    % Validate all labels are simple strings
     for i = 1:length(event_labels)
         label = event_labels{i};
-        fprintf('  [%d] class=%s, size=[%s], value=''%s''\n', ...
-            i, class(label), mat2str(size(label)), ...
-            char(label));
 
         if ~ischar(label)
-            fprintf('    -> Converting non-char to char\n');
             try
                 label = char(label);
             catch
@@ -155,19 +149,21 @@ function eventInfo = detectEEGEvents(EEG, preferredField)
 
         % Ensure single row
         if size(label, 1) > 1
-            fprintf('    -> Flattening multi-row char array (%d rows)\n', size(label, 1));
-            label = label(1, :);
+            label = strtrim(label(1, :));
+        end
+
+        % Trim any whitespace
+        if ischar(label)
+            label = strtrim(label);
         end
 
         % Ensure it's actually a valid char array (not empty)
         if isempty(label)
             label = sprintf('Event_%d', i);
-            fprintf('    -> Replaced empty with generic label\n');
         end
 
         % Store back
         event_labels{i} = label;
-        fprintf('    -> Final: class=%s, size=[%s]\n', class(label), mat2str(size(label)));
     end
 
     % Count unique event types using manual grouping (more robust than unique())
@@ -219,13 +215,12 @@ function eventInfo = detectEEGEvents(EEG, preferredField)
             eventInfo.numEvents, length(unique_types_sorted), type_list);
     end
 
-    fprintf('Event Detection:\n');
+    fprintf('Event Detection Summary:\n');
     fprintf('  Total events: %d\n', eventInfo.numEvents);
-    fprintf('  Event types: %d\n', length(eventInfo.eventTypes));
-    for i = 1:min(5, length(eventInfo.eventTypes))
-        fprintf('    %s: %d events\n', eventInfo.eventTypes{i}, eventInfo.eventCounts(i));
+    fprintf('  Unique event types: %d\n', length(eventInfo.eventTypes));
+    fprintf('  All detected markers:\n');
+    for i = 1:length(eventInfo.eventTypes)
+        fprintf('    %d. %s: %d occurrences\n', i, eventInfo.eventTypes{i}, eventInfo.eventCounts(i));
     end
-    if length(eventInfo.eventTypes) > 5
-        fprintf('    ... and %d more types\n', length(eventInfo.eventTypes) - 5);
-    end
+    fprintf('\n');
 end

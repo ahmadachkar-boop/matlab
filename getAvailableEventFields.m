@@ -42,22 +42,27 @@ function [fieldNames, fieldInfo] = getAvailableEventFields(EEG)
 
                 % Convert to string representation
                 if isnumeric(value)
-                    strValue = num2str(value);
+                    strValue = strtrim(num2str(value));
                 elseif ischar(value)
-                    strValue = strtrim(value);
+                    % Handle multi-row char arrays
+                    if size(value, 1) > 1
+                        strValue = strtrim(value(1, :));
+                    else
+                        strValue = strtrim(value);
+                    end
                 elseif isstring(value)
-                    strValue = char(value);
+                    strValue = strtrim(char(value));
                 elseif iscell(value)
                     if ~isempty(value)
-                        strValue = char(value{1});
+                        strValue = strtrim(char(value{1}));
                     else
                         continue;
                     end
                 else
-                    strValue = char(value);
+                    strValue = strtrim(char(value));
                 end
 
-                % Add to unique list if not already present
+                % Add to unique list if not already present (case-sensitive)
                 if ~isempty(strValue)
                     if ~any(strcmp(uniqueMarkers, strValue))
                         uniqueMarkers{end+1} = strValue;
@@ -89,8 +94,11 @@ function [fieldNames, fieldInfo] = getAvailableEventFields(EEG)
         end
     end
 
-    fprintf('Found %d event fields with data:\n', length(fieldNames));
+    fprintf('\n=== Available Event Fields ===\n');
+    fprintf('Found %d fields with event data:\n\n', length(fieldNames));
     for i = 1:length(fieldInfo)
-        fprintf('  - %s\n', fieldInfo(i).preview);
+        fprintf('Field %d: %s\n', i, fieldInfo(i).name);
+        fprintf('  Unique markers (%d): %s\n', fieldInfo(i).numUnique, strjoin(fieldInfo(i).uniqueMarkers, ', '));
+        fprintf('\n');
     end
 end
