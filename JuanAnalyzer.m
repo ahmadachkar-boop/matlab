@@ -440,27 +440,30 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             end
 
             % Run ICA - Using Picard for 5-10x speedup over runica
-            % With aggressive PCA dimensionality reduction for SPEED
+            % With PCA dimensionality reduction to handle rank deficiency
             try
                 % Check if picard is available (correct function name: eeg_picard)
                 if exist('eeg_picard', 'file')
-                    % Aggressive PCA reduction for maximum speed (handles rank deficiency)
-                    % Use 40 components - optimized for speed vs. quality tradeoff
-                    nComps = min(40, round(EEG.nbchan * 0.5));
-                    fprintf('Running fast ICA with PCA reduction (%d→%d components)...\n', EEG.nbchan, nComps);
+                    % PCA reduction to handle rank deficiency and improve performance
+                    % Use 64 components - good balance of speed and artifact detection quality
+                    nComps = min(64, round(EEG.nbchan * 0.66));
+                    fprintf('Running ICA with PCA reduction (%d→%d components)...\n', EEG.nbchan, nComps);
 
                     % Use pop_runica with picard to properly apply PCA reduction
                     % This reduces data to nComps dimensions BEFORE ICA
-                    EEG = pop_runica(EEG, 'icatype', 'picard', 'pca', nComps, 'maxiter', 25, 'tol', 1e-2);
+                    % Standard parameters for accurate artifact removal:
+                    % - maxiter=500 (allow full convergence)
+                    % - tol=1e-7 (tight tolerance for accurate ICA decomposition)
+                    EEG = pop_runica(EEG, 'icatype', 'picard', 'pca', nComps, 'maxiter', 500, 'tol', 1e-7);
                 else
                     % Fallback to runica if picard not installed
                     warning('Picard ICA not found, using runica (slower). Install picard plugin for faster processing.');
-                    EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1, 'pca', 40);
+                    EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1, 'pca', 64);
                 end
             catch ME
                 % If picard fails, fall back to runica with PCA
                 warning('Picard ICA failed (%s), using runica instead.', ME.message);
-                EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1, 'pca', 40);
+                EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1, 'pca', 64);
             end
 
             % Stage 4: Cleaning Signal
