@@ -53,7 +53,7 @@ fprintf('========================================\n\n');
 % Step 1: Determine which event field to use
 if isempty(fieldName)
     fprintf('Step 1: Auto-detecting event field...\n');
-    eventFieldInfo = getAvailableEventFields(EEG);
+    [~, eventFieldInfo] = getAvailableEventFields(EEG);
     if isempty(eventFieldInfo)
         error('No event fields found in EEG data');
     end
