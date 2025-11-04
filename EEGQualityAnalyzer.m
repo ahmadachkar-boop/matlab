@@ -805,7 +805,38 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             % Detect event markers using the selected event field
             try
                 selectedField = app.EventFieldDropdown.Value;
-                fprintf('\nDetecting markers using event field: ''%s''\n', selectedField);
+                fprintf('\n=== DETECTING MARKERS ===\n');
+                fprintf('Selected field: ''%s''\n', selectedField);
+
+                % Debug: Show raw values from this field
+                if isfield(app.EEG, 'event') && ~isempty(app.EEG.event)
+                    fprintf('Checking first 10 events in field ''%s'':\n', selectedField);
+                    for i = 1:min(10, length(app.EEG.event))
+                        if isfield(app.EEG.event, selectedField)
+                            val = app.EEG.event(i).(selectedField);
+                            if isempty(val)
+                                fprintf('  Event %d: [empty]\n', i);
+                            elseif isnumeric(val)
+                                fprintf('  Event %d: %s (numeric)\n', i, num2str(val));
+                            elseif ischar(val)
+                                fprintf('  Event %d: ''%s'' (char)\n', i, val);
+                            elseif isstring(val)
+                                fprintf('  Event %d: ''%s'' (string)\n', i, char(val));
+                            elseif iscell(val)
+                                if ~isempty(val)
+                                    fprintf('  Event %d: {''%s''} (cell)\n', i, char(val{1}));
+                                else
+                                    fprintf('  Event %d: {} (empty cell)\n', i);
+                                end
+                            else
+                                fprintf('  Event %d: [%s]\n', i, class(val));
+                            end
+                        else
+                            fprintf('  Event %d: [field ''%s'' does not exist]\n', i, selectedField);
+                        end
+                    end
+                end
+                fprintf('========================\n\n');
 
                 % Call detectEEGEvents with the selected field
                 app.EventInfo = detectEEGEvents(app.EEG, selectedField);
