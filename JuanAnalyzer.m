@@ -447,11 +447,11 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                     % Aggressive PCA reduction for maximum speed (handles rank deficiency)
                     % Use 40 components - optimized for speed vs. quality tradeoff
                     nComps = min(40, round(EEG.nbchan * 0.5));
-                    fprintf('Running fast ICA with aggressive PCA reduction (%d→%d components)...\n', EEG.nbchan, nComps);
+                    fprintf('Running fast ICA with PCA reduction (%d→%d components)...\n', EEG.nbchan, nComps);
 
-                    % Picard with very aggressive early stopping for MAXIMUM SPEED
-                    % maxiter=25 (was 50), tol=1e-2 (was 1e-3) for 2-3x faster completion
-                    EEG = eeg_picard(EEG, 'pca', nComps, 'maxiter', 25, 'tol', 1e-2);
+                    % Use pop_runica with picard to properly apply PCA reduction
+                    % This reduces data to nComps dimensions BEFORE ICA
+                    EEG = pop_runica(EEG, 'icatype', 'picard', 'pca', nComps, 'maxiter', 25, 'tol', 1e-2);
                 else
                     % Fallback to runica if picard not installed
                     warning('Picard ICA not found, using runica (slower). Install picard plugin for faster processing.');
