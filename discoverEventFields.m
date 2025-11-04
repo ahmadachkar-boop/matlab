@@ -289,11 +289,11 @@ function mappings = detectValueMappings(uniqueValues, fieldName)
             end
         end
 
-        % Numeric boolean
+        % Numeric boolean - prefix with 'n' to make valid field names
         if strcmp(val, '1')
-            mappings.('1') = 'yes';
+            mappings.n1 = 'yes';
         elseif strcmp(val, '0')
-            mappings.('0') = 'no';
+            mappings.n0 = 'no';
         end
     end
 end

@@ -66,12 +66,15 @@ function conditionLabel = parseEventUniversal(eventStruct, structure, discovery,
             % Apply value mappings if available
             if isfield(discovery.valueMappings, fieldName)
                 mappings = discovery.valueMappings.(fieldName);
-                mappingFields = fieldnames(mappings);
-                for m = 1:length(mappingFields)
-                    if strcmp(value, mappingFields{m})
-                        value = mappings.(mappingFields{m});
-                        break;
-                    end
+
+                % Direct string mappings (y, n, Y, N)
+                if isfield(mappings, value)
+                    value = mappings.(value);
+                % Numeric mappings (need prefix 'n' for valid field names)
+                elseif strcmp(value, '1') && isfield(mappings, 'n1')
+                    value = mappings.n1;
+                elseif strcmp(value, '0') && isfield(mappings, 'n0')
+                    value = mappings.n0;
                 end
             end
 
