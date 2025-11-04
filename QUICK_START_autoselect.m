@@ -48,16 +48,16 @@ catch ME
     error('Failed to load MFF file: %s', ME.message);
 end
 
-%% Step 2: Auto-select trial events
-fprintf('[Step 2/5] Auto-selecting trial events...\n');
+%% Step 2: Auto-select trial events (with intelligent grouping)
+fprintf('[Step 2/5] Auto-selecting and grouping trial events...\n');
 
 if isempty(conditionsToInclude)
-    fprintf('  Mode: Select ALL EVNT_TRSP events\n');
-    selectedEvents = autoSelectTrialEvents(EEG);
+    fprintf('  Mode: Select ALL EVNT_TRSP events, grouped by condition + word status\n');
+    selectedEvents = autoSelectTrialEventsGrouped(EEG);
 else
-    fprintf('  Mode: Select specific conditions only\n');
+    fprintf('  Mode: Select specific conditions only, grouped by condition + word status\n');
     fprintf('  Conditions: %s\n', strjoin(conditionsToInclude, ', '));
-    selectedEvents = autoSelectTrialEvents(EEG, 'Conditions', conditionsToInclude);
+    selectedEvents = autoSelectTrialEventsGrouped(EEG, 'Conditions', conditionsToInclude);
 end
 
 if isempty(selectedEvents)
@@ -86,13 +86,13 @@ else
     fprintf('[Step 3/5] Skipping preprocessing (disabled)\n\n');
 end
 
-%% Step 4: Epoch around selected events
-fprintf('[Step 4/5] Epoching data around selected events...\n');
+%% Step 4: Epoch around selected conditions (grouped)
+fprintf('[Step 4/5] Epoching data around selected conditions...\n');
 fprintf('  Time window: [%.3f, %.3f] seconds\n', epochTimeWindow(1), epochTimeWindow(2));
 
 try
-    epochedData = epochEEGByEvents(EEG, selectedEvents, epochTimeWindow);
-    fprintf('  ✓ Epoched %d event types\n\n', length(epochedData));
+    epochedData = epochEEGByEventsGrouped(EEG, selectedEvents, epochTimeWindow);
+    fprintf('  ✓ Epoched %d condition groups\n\n', length(epochedData));
 catch ME
     error('Epoching failed: %s', ME.message);
 end
