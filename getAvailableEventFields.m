@@ -1,13 +1,19 @@
-function availableFields = getAvailableEventFields(EEG)
+function [fieldNames, fieldInfo] = getAvailableEventFields(EEG)
     % GETAVAILABLEEVENTFIELDS - Detect which event fields are available in EEG data
     %
     % Input:
     %   EEG - EEG structure
     %
     % Output:
-    %   availableFields - Cell array of field names that exist and have data
+    %   fieldNames - Cell array of field names that exist and have data
+    %   fieldInfo - Struct array with detailed info about each field:
+    %               .name - Field name
+    %               .uniqueMarkers - Cell array of unique marker values
+    %               .numUnique - Number of unique markers
+    %               .preview - Short preview string for display
 
-    availableFields = {};
+    fieldNames = {};
+    fieldInfo = struct('name', {}, 'uniqueMarkers', {}, 'numUnique', {}, 'preview', {});
 
     % Check if EEG has events
     if ~isfield(EEG, 'event') || isempty(EEG.event)
@@ -17,27 +23,74 @@ function availableFields = getAvailableEventFields(EEG)
     events = EEG.event;
 
     % Common event field names to check
-    commonFields = {'type', 'code', 'label', 'labels', 'name', 'description', 'value'};
+    commonFields = {'labels', 'label', 'code', 'type', 'name', 'description', 'value'};
 
     % Check which fields exist and have non-empty values
     for i = 1:length(commonFields)
         fieldName = commonFields{i};
 
         if isfield(events, fieldName)
-            % Check if at least one event has a non-empty value for this field
-            hasData = false;
+            % Extract all unique values from this field
+            uniqueMarkers = {};
+
             for j = 1:length(events)
-                if ~isempty(events(j).(fieldName))
-                    hasData = true;
-                    break;
+                value = events(j).(fieldName);
+
+                if isempty(value)
+                    continue;
+                end
+
+                % Convert to string representation
+                if isnumeric(value)
+                    strValue = num2str(value);
+                elseif ischar(value)
+                    strValue = strtrim(value);
+                elseif isstring(value)
+                    strValue = char(value);
+                elseif iscell(value)
+                    if ~isempty(value)
+                        strValue = char(value{1});
+                    else
+                        continue;
+                    end
+                else
+                    strValue = char(value);
+                end
+
+                % Add to unique list if not already present
+                if ~isempty(strValue)
+                    if ~any(strcmp(uniqueMarkers, strValue))
+                        uniqueMarkers{end+1} = strValue;
+                    end
                 end
             end
 
-            if hasData
-                availableFields{end+1} = fieldName;
+            if ~isempty(uniqueMarkers)
+                % Create preview string
+                numMarkers = length(uniqueMarkers);
+                if numMarkers <= 3
+                    % Show all markers
+                    preview = sprintf('%s (%d markers: %s)', fieldName, numMarkers, strjoin(uniqueMarkers, ', '));
+                else
+                    % Show first 3 markers + "..."
+                    preview = sprintf('%s (%d markers: %s, ...)', fieldName, numMarkers, strjoin(uniqueMarkers(1:3), ', '));
+                end
+
+                % Store info
+                info = struct();
+                info.name = fieldName;
+                info.uniqueMarkers = uniqueMarkers;
+                info.numUnique = numMarkers;
+                info.preview = preview;
+
+                fieldNames{end+1} = fieldName;
+                fieldInfo(end+1) = info;
             end
         end
     end
 
-    fprintf('Found %d event fields with data: %s\n', length(availableFields), strjoin(availableFields, ', '));
+    fprintf('Found %d event fields with data:\n', length(fieldNames));
+    for i = 1:length(fieldInfo)
+        fprintf('  - %s\n', fieldInfo(i).preview);
+    end
 end

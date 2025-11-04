@@ -85,6 +85,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         ClinicalMetrics         struct
         ProcessingStages        cell
         EventInfo               struct
+        EventFieldInfo          struct  % Detailed info about available event fields
         EpochedData             struct
         EpochDefinitions        cell  % Cell array of structs {startMarker, endMarker, name}
     end
@@ -719,19 +720,29 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
                 % Detect available event fields
                 try
-                    availableFields = getAvailableEventFields(EEG);
+                    [fieldNames, fieldInfo] = getAvailableEventFields(EEG);
 
-                    if ~isempty(availableFields)
+                    if ~isempty(fieldNames)
+                        % Store field info for later use
+                        app.EventFieldInfo = fieldInfo;
+
+                        % Create preview items for dropdown
+                        previewItems = cell(1, length(fieldInfo));
+                        for i = 1:length(fieldInfo)
+                            previewItems{i} = fieldInfo(i).preview;
+                        end
+
                         % Show event field selection UI
                         app.EventFieldLabel.Visible = 'on';
-                        app.EventFieldDropdown.Items = availableFields;
-                        app.EventFieldDropdown.Value = availableFields{1};  % Default to first field
+                        app.EventFieldDropdown.Items = previewItems;
+                        app.EventFieldDropdown.ItemsData = fieldNames;  % Store actual field names
+                        app.EventFieldDropdown.Value = fieldNames{1};  % Default to first field
                         app.EventFieldDropdown.Visible = 'on';
                         app.DetectMarkersButton.Visible = 'on';
 
-                        % Show info about events
+                        % Show info about events with preview of first field
                         if isfield(EEG, 'event') && ~isempty(EEG.event)
-                            app.EventsDetectedLabel.Text = sprintf('⚡ Found %d events - Select field type above to view markers', length(EEG.event));
+                            app.EventsDetectedLabel.Text = sprintf('⚡ Found %d events total - Choose field above (markers shown in preview)', length(EEG.event));
                             app.EventsDetectedLabel.Visible = 'on';
                         end
 
