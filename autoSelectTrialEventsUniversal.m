@@ -84,6 +84,8 @@ function [selectedEventTypes, structure, discovery] = autoSelectTrialEventsUnive
         fprintf('  Auto-detected: %s\n', strjoin(discovery.groupingFields, ', '));
         fprintf('  User override: %s\n', strjoin(groupByOverride, ', '));
         groupByFields = groupByOverride;
+        % Update discovery structure so override persists to epoching stage
+        discovery.groupingFields = groupByFields;
     else
         groupByFields = discovery.groupingFields;
     end
