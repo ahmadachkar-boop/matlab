@@ -128,6 +128,30 @@ function discovery = discoverEventFields(EEG, structure)
         % Special handling for common field names
         fieldLower = lower(fieldName);
 
+        % Exclude EEG metadata fields (never use for grouping)
+        metadataPatterns = {'description', 'classid', 'label', 'sourcedevice', 'name', ...
+                           'tracktype', 'begintime', 'endtime', 'relativebegintime', ...
+                           'age', 'exp', 'hand', 'sex', 'subj', 'backup', 'urevent'};
+        isMetadata = false;
+        for mp = 1:length(metadataPatterns)
+            if contains(fieldLower, metadataPatterns{mp})
+                isMetadata = true;
+                break;
+            end
+        end
+
+        if isMetadata
+            classification = '✗ METADATA';
+            if ~ismember(fieldName, discovery.excludeFields)
+                discovery.excludeFields{end+1} = fieldName;
+            end
+            % Remove from grouping if it was added
+            discovery.groupingFields = discovery.groupingFields(~strcmp(discovery.groupingFields, fieldName));
+            fprintf('%-20s %12d %11.2f%% %20s\n', ...
+                fieldName, numUnique, cardinality * 100, classification);
+            continue;
+        end
+
         % Trial-specific patterns
         if contains(fieldLower, {'trial', 'trl', 'obs', 'rep', 'response', 'rt', 'time', 'cel', 'latency'})
             classification = '✗ TRIAL-SPECIFIC';
@@ -138,8 +162,8 @@ function discovery = discoverEventFields(EEG, structure)
             discovery.groupingFields = discovery.groupingFields(~strcmp(discovery.groupingFields, fieldName));
         end
 
-        % Condition-specific patterns
-        if contains(fieldLower, {'cond', 'condition', 'stim', 'stimulus', 'task', 'type'}) && cardinality < 0.5
+        % Condition-specific patterns (but exclude 'code' without mffkey prefix - that's EEG metadata)
+        if contains(fieldLower, {'cond', 'condition', 'stim', 'stimulus', 'task'}) && cardinality < 0.5
             if ~ismember(fieldName, discovery.groupingFields) && numUnique >= 2
                 classification = '✓ CONDITION';
                 discovery.groupingFields{end+1} = fieldName;
@@ -313,18 +337,33 @@ function prioritized = prioritizeGroupingFields(fields, stats)
         fieldName = fields{i};
         fieldLower = lower(fieldName);
 
-        % Highest priority: condition/stimulus fields
-        if contains(fieldLower, {'cond', 'condition', 'stim', 'stimulus'})
+        % SUPER HIGH PRIORITY: mffkey fields (experimental variables)
+        isMffkey = startsWith(fieldLower, 'mffkey_');
+
+        % Highest priority: mffkey condition fields
+        if isMffkey && contains(fieldLower, {'cond', 'condition'})
+            priorities(i) = 150;
+        % Very high priority: mffkey code/word fields
+        elseif isMffkey && contains(fieldLower, {'code', 'word', 'lex'})
+            priorities(i) = 140;
+        % High priority: other mffkey experimental variables
+        elseif isMffkey && contains(fieldLower, {'verb', 'phon', 'sylb', 'freq', 'task'})
+            priorities(i) = 130;
+        % Medium-high: any other mffkey field (experimental)
+        elseif isMffkey
+            priorities(i) = 110;
+        % Medium: non-mffkey condition fields
+        elseif contains(fieldLower, {'cond', 'condition', 'stim', 'stimulus'})
             priorities(i) = 100;
-        % High priority: task/type fields
-        elseif contains(fieldLower, {'task', 'type', 'category'})
-            priorities(i) = 90;
-        % Medium priority: code/word/status fields
+        % Lower: code/word fields without mffkey prefix
         elseif contains(fieldLower, {'code', 'word', 'lex', 'status'})
             priorities(i) = 80;
-        % Lower priority: modifier fields
+        % Low: modifier fields
         elseif contains(fieldLower, {'verb', 'phon', 'sylb', 'freq'})
             priorities(i) = 70;
+        % Very low: task/type fields (often metadata)
+        elseif contains(fieldLower, {'task', 'type', 'category'})
+            priorities(i) = 60;
         % Lowest: everything else
         else
             priorities(i) = 50;
@@ -340,8 +379,15 @@ function prioritized = prioritizeGroupingFields(fields, stats)
     [~, sortIdx] = sort(priorities, 'descend');
     prioritized = fields(sortIdx);
 
-    % Limit to top 3 fields by default (avoid over-fragmentation)
-    if length(prioritized) > 3
-        prioritized = prioritized(1:3);
+    % Limit to top 2-3 fields by default (avoid over-fragmentation)
+    % Keep top 2 if both are high priority (>120), otherwise top 3
+    if length(prioritized) > 2
+        if priorities(sortIdx(1)) > 120 && priorities(sortIdx(2)) > 120
+            % Keep just the top 2 high-priority mffkey fields
+            prioritized = prioritized(1:2);
+        elseif length(prioritized) > 3
+            % Otherwise limit to top 3
+            prioritized = prioritized(1:3);
+        end
     end
 end

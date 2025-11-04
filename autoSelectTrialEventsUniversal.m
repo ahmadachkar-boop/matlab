@@ -85,6 +85,9 @@ function [selectedEventTypes, structure, discovery] = autoSelectTrialEventsUnive
     conditionLabels = {};
     originalEventTypes = {};
     eventIndices = [];
+    skippedGeneric = 0;
+    skippedEmpty = 0;
+    skippedPattern = 0;
 
     for i = 1:length(EEG.event)
         evt = EEG.event(i);
@@ -98,6 +101,7 @@ function [selectedEventTypes, structure, discovery] = autoSelectTrialEventsUnive
         % Check if event matches pattern (if one was detected)
         if ~isempty(structure.eventPattern)
             if ~contains(eventType, structure.eventPattern, 'IgnoreCase', true)
+                skippedPattern = skippedPattern + 1;
                 continue;
             end
         end
@@ -105,14 +109,44 @@ function [selectedEventTypes, structure, discovery] = autoSelectTrialEventsUnive
         % Parse the event to get condition label
         condLabel = parseEventUniversal(evt, structure, discovery, groupByFields);
 
-        if ~isempty(condLabel)
-            conditionLabels{end+1} = condLabel;
-            originalEventTypes{end+1} = eventType;
-            eventIndices(end+1) = i;
+        % Skip empty labels
+        if isempty(condLabel)
+            skippedEmpty = skippedEmpty + 1;
+            continue;
         end
+
+        % Skip events with generic labels (events without proper condition info)
+        % Generic labels are single-word labels that match common event types
+        genericLabels = {'STIM', 'EVNT', 'TRIG', 'TRIGGER', 'STIMULUS', 'EVENT', 'DIN', 'RESP', 'RESPONSE'};
+        isGeneric = false;
+        for g = 1:length(genericLabels)
+            if strcmpi(condLabel, genericLabels{g})
+                isGeneric = true;
+                break;
+            end
+        end
+
+        if isGeneric
+            skippedGeneric = skippedGeneric + 1;
+            continue;
+        end
+
+        % Valid condition label - add it
+        conditionLabels{end+1} = condLabel;
+        originalEventTypes{end+1} = eventType;
+        eventIndices(end+1) = i;
     end
 
     fprintf('  ✓ Parsed %d matching events\n', length(conditionLabels));
+    if skippedPattern > 0
+        fprintf('  ℹ Skipped %d events (pattern mismatch)\n', skippedPattern);
+    end
+    if skippedGeneric > 0
+        fprintf('  ℹ Skipped %d events (generic labels without condition info)\n', skippedGeneric);
+    end
+    if skippedEmpty > 0
+        fprintf('  ℹ Skipped %d events (no parseable condition info)\n', skippedEmpty);
+    end
 
     if isempty(conditionLabels)
         error('No events could be parsed! Check your data or try manual configuration.');
