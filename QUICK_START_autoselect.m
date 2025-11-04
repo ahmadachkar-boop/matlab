@@ -116,8 +116,8 @@ for i = 1:length(epochedData)
 
     fprintf('%2d. %-40s [%s] n=%3d', i, ed.eventType, condition, ed.numEpochs);
 
-    if isfield(ed, 'metrics')
-        fprintf('  SNR=%.1fdB', ed.metrics.snr_db);
+    if isfield(ed, 'metrics') && isfield(ed.metrics, 'mean_snr_db')
+        fprintf('  SNR=%.1fdB', ed.metrics.mean_snr_db);
     end
     fprintf('\n');
 end
