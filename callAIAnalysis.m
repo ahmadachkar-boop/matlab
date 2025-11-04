@@ -94,9 +94,6 @@ function response = callClaudeAPI(prompt)
         'max_tokens', 4096, ...
         'messages', {{struct('role', 'user', 'content', prompt)}});
 
-    % Convert to JSON
-    jsonBody = jsonencode(body);
-
     % Make the request
     try
         options = weboptions(...
@@ -104,7 +101,8 @@ function response = callClaudeAPI(prompt)
             'ContentType', 'json', ...
             'Timeout', 30);
 
-        result = webwrite(url, jsonBody, options);
+        % Pass struct directly - webwrite will encode it as JSON
+        result = webwrite(url, body, options);
 
         % Extract content from response
         if isfield(result, 'content') && ~isempty(result.content)
@@ -152,9 +150,6 @@ function response = callOpenAIAPI(prompt)
         'temperature', 0.3, ...
         'response_format', struct('type', 'json_object'));
 
-    % Convert to JSON
-    jsonBody = jsonencode(body);
-
     % Make the request
     try
         options = weboptions(...
@@ -162,7 +157,8 @@ function response = callOpenAIAPI(prompt)
             'ContentType', 'json', ...
             'Timeout', 30);
 
-        result = webwrite(url, jsonBody, options);
+        % Pass struct directly - webwrite will encode it as JSON
+        result = webwrite(url, body, options);
 
         % Extract content from response
         if isfield(result, 'choices') && ~isempty(result.choices)
