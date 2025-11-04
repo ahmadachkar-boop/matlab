@@ -443,9 +443,9 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             try
                 % Check if picard is available (correct function name: eeg_picard)
                 if exist('eeg_picard', 'file')
-                    % Use Picard with reasonable parameters
-                    % maxiter=100 is sufficient (default), verbose=0 suppresses iteration spam
-                    EEG = eeg_picard(EEG, 'maxiter', 100, 'verbose', 0);
+                    % Use Picard with reduced iterations (100 is sufficient for convergence)
+                    % Keep verbose output so user can monitor progress
+                    EEG = eeg_picard(EEG, 'maxiter', 100);
                 else
                     % Fallback to runica if picard not installed
                     warning('Picard ICA not found, using runica (slower). Install picard plugin for faster processing.');
