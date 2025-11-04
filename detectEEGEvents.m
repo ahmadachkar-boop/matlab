@@ -1,8 +1,9 @@
-function eventInfo = detectEEGEvents(EEG)
+function eventInfo = detectEEGEvents(EEG, preferredField)
     % DETECTEEGEVENTS - Detect and categorize event markers in EEG data
     %
     % Input:
     %   EEG - EEG structure
+    %   preferredField - (Optional) Preferred event field to use ('type', 'code', 'label', etc.)
     %
     % Output:
     %   eventInfo - Structure containing:
@@ -12,6 +13,12 @@ function eventInfo = detectEEGEvents(EEG)
     %     .eventCounts - Array of counts for each type
     %     .events - Original event structure
     %     .description - Human-readable description
+    %     .fieldUsed - The field that was used for event types
+
+    % Handle optional parameter
+    if nargin < 2
+        preferredField = '';
+    end
 
     eventInfo = struct();
     eventInfo.hasEvents = false;
@@ -20,6 +27,7 @@ function eventInfo = detectEEGEvents(EEG)
     eventInfo.eventCounts = [];
     eventInfo.events = [];
     eventInfo.description = 'No events detected';
+    eventInfo.fieldUsed = '';
 
     % Check if EEG has events
     if ~isfield(EEG, 'event') || isempty(EEG.event)
@@ -31,8 +39,13 @@ function eventInfo = detectEEGEvents(EEG)
     eventInfo.events = events;
 
     % Extract event types
-    % Try different field names that commonly contain event types
-    type_fields = {'type', 'code', 'label', 'name', 'description'};
+    % If preferred field specified, use only that; otherwise try common fields
+    if ~isempty(preferredField)
+        type_fields = {preferredField};
+    else
+        type_fields = {'type', 'code', 'label', 'labels', 'name', 'description'};
+    end
+
     event_labels = cell(1, length(events));
 
     for i = 1:length(events)
@@ -105,6 +118,10 @@ function eventInfo = detectEEGEvents(EEG)
                 end
 
                 if ~isempty(label)
+                    % Track which field was successfully used
+                    if isempty(eventInfo.fieldUsed)
+                        eventInfo.fieldUsed = field;
+                    end
                     break;
                 end
             end

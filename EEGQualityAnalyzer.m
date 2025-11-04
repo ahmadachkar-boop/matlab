@@ -20,6 +20,11 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
         ChannelsLabel           matlab.ui.control.Label
         EventsDetectedLabel     matlab.ui.control.Label
 
+        % Event Field Selection Components
+        EventFieldLabel         matlab.ui.control.Label
+        EventFieldDropdown      matlab.ui.control.DropDown
+        DetectMarkersButton     matlab.ui.control.Button
+
         % Epoch Definition Builder Components
         EpochBuilderLabel       matlab.ui.control.Label
         StartMarkerLabel        matlab.ui.control.Label
@@ -226,6 +231,31 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             app.EventsDetectedLabel.FontSize = 12;
             app.EventsDetectedLabel.FontColor = [0.3 0.5 0.7];
             app.EventsDetectedLabel.Visible = 'off';
+
+            % Event Field Selection Section
+            app.EventFieldLabel = uilabel(app.FileInfoPanel);
+            app.EventFieldLabel.Position = [20 325 200 20];
+            app.EventFieldLabel.Text = '🔍 Select Event Field Type:';
+            app.EventFieldLabel.FontSize = 11;
+            app.EventFieldLabel.FontWeight = 'bold';
+            app.EventFieldLabel.FontColor = [0.2 0.4 0.6];
+            app.EventFieldLabel.Visible = 'off';
+
+            app.EventFieldDropdown = uidropdown(app.FileInfoPanel);
+            app.EventFieldDropdown.Position = [220 323 150 22];
+            app.EventFieldDropdown.FontSize = 10;
+            app.EventFieldDropdown.Items = {};
+            app.EventFieldDropdown.Visible = 'off';
+            app.EventFieldDropdown.ValueChangedFcn = @(dd,event) detectMarkersFromField(app);
+
+            app.DetectMarkersButton = uibutton(app.FileInfoPanel, 'push');
+            app.DetectMarkersButton.Position = [380 320 120 28];
+            app.DetectMarkersButton.Text = 'Detect Markers';
+            app.DetectMarkersButton.FontSize = 10;
+            app.DetectMarkersButton.BackgroundColor = [0.2 0.6 0.8];
+            app.DetectMarkersButton.FontColor = [1 1 1];
+            app.DetectMarkersButton.Visible = 'off';
+            app.DetectMarkersButton.ButtonPushedFcn = @(btn,event) detectMarkersFromField(app);
 
             % Epoch Builder Section (hidden initially, shown when events detected)
             app.EpochBuilderLabel = uilabel(app.FileInfoPanel);
@@ -685,54 +715,46 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                 app.DurationLabel.Text = sprintf('⏱️  Duration: %.1f seconds (%.1f minutes)', EEG.xmax, EEG.xmax/60);
                 app.ChannelsLabel.Text = sprintf('📊 Channels: %d', EEG.nbchan);
 
-                % Detect events
+                % Detect available event fields
                 try
-                    app.EventInfo = detectEEGEvents(EEG);
+                    availableFields = getAvailableEventFields(EEG);
 
-                    if app.EventInfo.hasEvents
-                        % Show event information
-                        app.EventsDetectedLabel.Text = sprintf('⚡ Events: %s', app.EventInfo.description);
-                        app.EventsDetectedLabel.Visible = 'on';
+                    if ~isempty(availableFields)
+                        % Show event field selection UI
+                        app.EventFieldLabel.Visible = 'on';
+                        app.EventFieldDropdown.Items = availableFields;
+                        app.EventFieldDropdown.Value = availableFields{1};  % Default to first field
+                        app.EventFieldDropdown.Visible = 'on';
+                        app.DetectMarkersButton.Visible = 'on';
 
-                        % Populate marker dropdowns
-                        markerItems = app.EventInfo.eventTypes;
-                        app.StartMarkerDropdown.Items = markerItems;
-                        app.EndMarkerDropdown.Items = markerItems;
-
-                        % Set default selections (first and second marker if available)
-                        if length(markerItems) >= 2
-                            app.StartMarkerDropdown.Value = markerItems{1};
-                            app.EndMarkerDropdown.Value = markerItems{2};
-                        elseif length(markerItems) == 1
-                            app.StartMarkerDropdown.Value = markerItems{1};
-                            app.EndMarkerDropdown.Value = markerItems{1};
+                        % Show info about events
+                        if isfield(EEG, 'event') && ~isempty(EEG.event)
+                            app.EventsDetectedLabel.Text = sprintf('⚡ Found %d events - Select field type above to view markers', length(EEG.event));
+                            app.EventsDetectedLabel.Visible = 'on';
                         end
 
-                        % Show epoch builder UI
-                        app.EpochBuilderLabel.Visible = 'on';
-                        app.StartMarkerLabel.Visible = 'on';
-                        app.StartMarkerDropdown.Visible = 'on';
-                        app.EndMarkerLabel.Visible = 'on';
-                        app.EndMarkerDropdown.Visible = 'on';
-                        app.EpochNameLabel.Visible = 'on';
-                        app.EpochNameField.Visible = 'on';
-                        app.AddEpochButton.Visible = 'on';
-                        app.EpochListLabel.Visible = 'on';
-                        app.EpochListBox.Visible = 'on';
-                        app.RemoveEpochButton.Visible = 'on';
+                        % Hide epoch builder until markers are detected
+                        hideEpochBuilder(app);
 
                         % Clear any previous epoch definitions
                         app.EpochDefinitions = {};
                         app.EpochListBox.Items = {};
                     else
-                        % No events detected - hide epoch builder UI
-                        app.EventsDetectedLabel.Visible = 'off';
+                        % No event fields found - hide all event-related UI
+                        app.EventsDetectedLabel.Text = '⚠️  No event markers found in this file';
+                        app.EventsDetectedLabel.Visible = 'on';
+                        app.EventFieldLabel.Visible = 'off';
+                        app.EventFieldDropdown.Visible = 'off';
+                        app.DetectMarkersButton.Visible = 'off';
                         hideEpochBuilder(app);
                     end
                 catch ME
-                    fprintf('Warning: Event detection failed: %s\n', ME.message);
-                    % Hide epoch builder UI if detection fails
+                    fprintf('Warning: Event field detection failed: %s\n', ME.message);
+                    % Hide event-related UI if detection fails
                     app.EventsDetectedLabel.Visible = 'off';
+                    app.EventFieldLabel.Visible = 'off';
+                    app.EventFieldDropdown.Visible = 'off';
+                    app.DetectMarkersButton.Visible = 'off';
                     hideEpochBuilder(app);
                 end
 
@@ -744,6 +766,68 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
 
             catch ME
                 uialert(app.UIFigure, ME.message, 'Error Loading File');
+            end
+        end
+
+        function detectMarkersFromField(app)
+            % Detect event markers using the selected event field
+            try
+                selectedField = app.EventFieldDropdown.Value;
+                fprintf('\nDetecting markers using event field: ''%s''\n', selectedField);
+
+                % Call detectEEGEvents with the selected field
+                app.EventInfo = detectEEGEvents(app.EEG, selectedField);
+
+                if app.EventInfo.hasEvents
+                    % Show event information
+                    app.EventsDetectedLabel.Text = sprintf('⚡ Events: %s (using field: %s)', ...
+                        app.EventInfo.description, selectedField);
+                    app.EventsDetectedLabel.Visible = 'on';
+
+                    % Populate marker dropdowns
+                    markerItems = app.EventInfo.eventTypes;
+                    app.StartMarkerDropdown.Items = markerItems;
+                    app.EndMarkerDropdown.Items = markerItems;
+
+                    % Set default selections (first and second marker if available)
+                    if length(markerItems) >= 2
+                        app.StartMarkerDropdown.Value = markerItems{1};
+                        app.EndMarkerDropdown.Value = markerItems{2};
+                    elseif length(markerItems) == 1
+                        app.StartMarkerDropdown.Value = markerItems{1};
+                        app.EndMarkerDropdown.Value = markerItems{1};
+                    end
+
+                    % Show epoch builder UI
+                    app.EpochBuilderLabel.Visible = 'on';
+                    app.StartMarkerLabel.Visible = 'on';
+                    app.StartMarkerDropdown.Visible = 'on';
+                    app.EndMarkerLabel.Visible = 'on';
+                    app.EndMarkerDropdown.Visible = 'on';
+                    app.EpochNameLabel.Visible = 'on';
+                    app.EpochNameField.Visible = 'on';
+                    app.AddEpochButton.Visible = 'on';
+                    app.EpochListLabel.Visible = 'on';
+                    app.EpochListBox.Visible = 'on';
+                    app.RemoveEpochButton.Visible = 'on';
+
+                    % Clear any previous epoch definitions when changing field
+                    app.EpochDefinitions = {};
+                    app.EpochListBox.Items = {};
+
+                    fprintf('✓ Found %d unique marker types\n', length(markerItems));
+                else
+                    % No events detected - hide epoch builder UI
+                    app.EventsDetectedLabel.Text = sprintf('⚠️  No valid markers found in field: %s', selectedField);
+                    app.EventsDetectedLabel.Visible = 'on';
+                    hideEpochBuilder(app);
+                    fprintf('Warning: No markers detected in selected field\n');
+                end
+            catch ME
+                fprintf('Error detecting markers: %s\n', ME.message);
+                app.EventsDetectedLabel.Text = sprintf('❌ Error detecting markers: %s', ME.message);
+                app.EventsDetectedLabel.Visible = 'on';
+                hideEpochBuilder(app);
             end
         end
 
