@@ -101,6 +101,13 @@ function launchJuanAnalyzer()
         fprintf('  • 🤖 AI-Only Event Detection (Claude/OpenAI)\n');
         fprintf('  • 📊 ERP Components: N250, N400, P600\n');
         fprintf('  • 📈 Frequency Analysis: Delta-Gamma bands\n');
+        fprintf('  • ⚙️  Complete Preprocessing Pipeline:\n');
+        fprintf('       - Resample to 250 Hz\n');
+        fprintf('       - High-pass filter: 0.5 Hz\n');
+        fprintf('       - Low-pass filter: 50 Hz\n');
+        fprintf('       - Notch filter: 60 Hz (±2 Hz)\n');
+        fprintf('       - Average re-reference\n');
+        fprintf('       - ICA artifact removal (>90%% threshold)\n');
         fprintf('  • ⚠️  Bad Channel Warnings (channels kept)\n');
         fprintf('  • 💾 Export results to .mat file\n\n');
 

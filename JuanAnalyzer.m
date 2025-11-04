@@ -50,7 +50,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         EEG                     struct
         Results                 struct
         CurrentStage            double = 0
-        TotalStages             double = 7
+        TotalStages             double = 8
     end
 
     methods (Access = public)
@@ -378,12 +378,12 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         end
 
         function processEEG(app)
-            % Run the full analysis pipeline
+            % Run the full analysis pipeline - EXACT preprocessing from launchEEGAnalyzer
 
             provider = app.ProviderDropdown.Value;
 
-            % Stage 1: Load data
-            updateProgress(app, 1, 'Loading EEG data...');
+            % Stage 1: Loading Data
+            updateProgress(app, 1, 'Loading Data...');
             if isempty(app.EEG)
                 if endsWith(app.EEGFile, '.mff')
                     app.EEG = pop_mffimport(app.EEGFile, {});
@@ -394,44 +394,96 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             EEG = app.EEG;
             EEG_original = EEG;
 
-            % Stage 2: Check bad channels (warn but keep)
-            updateProgress(app, 2, 'Checking channel quality...');
+            % Stage 2: Filtering & Preprocessing
+            updateProgress(app, 2, 'Filtering & Preprocessing...');
+            params.resample_rate = 250;
+            params.hp_cutoff = 0.5;
+            params.lp_cutoff = 50;
+            params.notch_freq = 60;
+
+            EEG = pop_resample(EEG, params.resample_rate);
+            EEG = pop_eegfiltnew(EEG, 'locutoff', params.hp_cutoff, 'plotfreqz', 0);
+            EEG = pop_eegfiltnew(EEG, 'hicutoff', params.lp_cutoff, 'plotfreqz', 0);
+            EEG = pop_eegfiltnew(EEG, 'locutoff', params.notch_freq-2, 'hicutoff', params.notch_freq+2, 'revfilt', 1, 'plotfreqz', 0);
+            EEG = pop_reref(EEG, []);
+
+            % Stage 3: Artifact Detection
+            updateProgress(app, 3, 'Detecting Artifacts...');
+
+            % Bad channel detection (identify but DON'T remove - user request)
             badChans = [];
+            badChanLabels = {};
             try
-                chanStats = zeros(EEG.nbchan, 1);
-                for ch = 1:EEG.nbchan
-                    chanStats(ch) = kurtosis(EEG.data(ch, :));
+                % Run pop_rejchan to identify bad channels
+                EEG_temp = pop_rejchan(EEG, 'elec', 1:EEG.nbchan, 'threshold', 7, 'norm', 'on', 'measure', 'kurt');
+
+                % Identify which channels would be removed
+                if EEG_temp.nbchan < EEG.nbchan
+                    % Find removed channels by comparing channel sets
+                    originalChans = 1:EEG.nbchan;
+                    if isfield(EEG, 'chanlocs') && ~isempty(EEG.chanlocs)
+                        originalLabels = {EEG.chanlocs.labels};
+                        remainingLabels = {EEG_temp.chanlocs.labels};
+                        badChans = find(~ismember(originalLabels, remainingLabels));
+                        badChanLabels = originalLabels(badChans);
+                    else
+                        badChans = setdiff(originalChans, 1:EEG_temp.nbchan);
+                    end
                 end
-                badChans = find(abs(chanStats) > 5);
+                % DON'T apply the removal - keep EEG unchanged, just record bad channels
             catch
+                % If detection fails, continue without bad channel info
             end
 
-            % Stage 3: AI event detection
-            updateProgress(app, 3, sprintf('🤖 AI-powered event detection (%s)...', upper(provider)));
+            % Run ICA
+            try
+                EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1);
+            catch
+                % Skip ICA if it fails
+            end
+
+            % Stage 4: Cleaning Signal
+            updateProgress(app, 4, 'Cleaning Signal...');
+
+            % Run ICLabel if ICA succeeded
+            removedComponents = [];
+            if isfield(EEG, 'icaweights') && ~isempty(EEG.icaweights)
+                try
+                    EEG = pop_iclabel(EEG, 'default');
+
+                    % Auto-flag artifact components (exact thresholds from launchEEGAnalyzer)
+                    EEG = pop_icflag(EEG, [0 0; 0.9 1; 0.9 1; 0.9 1; 0.9 1; 0.9 1; 0 0]);
+
+                    % Remove flagged components
+                    bad_comps = find(EEG.reject.gcompreject);
+                    if ~isempty(bad_comps)
+                        removedComponents = bad_comps;
+                        EEG = pop_subcomp(EEG, bad_comps, 0);
+                    end
+                catch
+                    % Continue if ICLabel fails
+                end
+            end
+
+            % Stage 5: AI Event Detection
+            updateProgress(app, 5, sprintf('🤖 AI-Powered Event Detection (%s)...', upper(provider)));
             [selectedEvents, structure, discovery] = autoSelectTrialEventsUniversal(EEG, ...
                 'UseAI', 'always', ...
                 'AIProvider', provider, ...
                 'Display', false);
 
-            % Stage 4: Preprocessing
-            updateProgress(app, 4, 'Preprocessing (filtering, re-referencing)...');
-            EEG = pop_resample(EEG, 250);
-            EEG = pop_eegfiltnew(EEG, 'locutoff', 0.1, 'plotfreqz', 0);
-            EEG = pop_eegfiltnew(EEG, 'hicutoff', 30, 'plotfreqz', 0);
-            EEG = pop_reref(EEG, []);
-
-            % Stage 5: Epoching
-            updateProgress(app, 5, 'Extracting epochs and computing ERPs...');
+            % Stage 6: Extracting Epochs
+            updateProgress(app, 6, 'Extracting Epochs and Computing ERPs...');
             timeWindow = [-0.2, 0.8];
             epochedData = epochEEGByEventsUniversal(EEG, selectedEvents, timeWindow, ...
                 structure, discovery, discovery.groupingFields);
 
-            % Stage 6: ERP component analysis
-            updateProgress(app, 6, 'Analyzing ERP components (N250, N400, P600)...');
+            % Stage 7: ERP Component Analysis
+            updateProgress(app, 7, 'Analyzing ERP Components (N250, N400, P600)...');
             erpAnalysis = analyzeERPComponentsGUI(epochedData, timeWindow);
 
-            % Stage 7: Frequency analysis
-            updateProgress(app, 7, 'Analyzing frequency bands...');
+            % Stage 8: Frequency Analysis
+            updateProgress(app, 8, 'Analyzing Frequency Bands...');
             freqAnalysis = analyzeFrequencyBandsGUI(EEG);
 
             % Store results
@@ -440,10 +492,14 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             app.Results.erpAnalysis = erpAnalysis;
             app.Results.freqAnalysis = freqAnalysis;
             app.Results.badChannels = badChans;
+            app.Results.badChannelLabels = badChanLabels;
+            app.Results.removedComponents = removedComponents;
             app.Results.structure = structure;
             app.Results.discovery = discovery;
             app.Results.selectedEvents = selectedEvents;
             app.Results.EEG = EEG;
+            app.Results.EEG_original = EEG_original;
+            app.Results.preprocessing = params;
         end
 
         function updateProgress(app, stage, message)
@@ -557,19 +613,72 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             summary = {};
             summary{end+1} = '========================================';
-            summary{end+1} = '  ANALYSIS SUMMARY';
+            summary{end+1} = '  JUAN ANALYZER - ANALYSIS SUMMARY';
             summary{end+1} = '========================================';
             summary{end+1} = '';
-            summary{end+1} = sprintf('Event types detected: %d', length(results.selectedEvents));
-            summary{end+1} = sprintf('Total epochs: %d', sum([results.epochedData.numEpochs]));
 
-            if ~isempty(results.badChannels)
-                summary{end+1} = sprintf('⚠ Bad channels (kept): %d', length(results.badChannels));
-            else
-                summary{end+1} = '✓ All channels good';
+            % Data info
+            summary{end+1} = 'DATA INFORMATION:';
+            summary{end+1} = '----------------------------------------';
+            summary{end+1} = sprintf('Original channels: %d', results.EEG_original.nbchan);
+            summary{end+1} = sprintf('Original events: %d', length(results.EEG_original.event));
+            summary{end+1} = sprintf('Duration: %.1f seconds', results.EEG_original.xmax);
+            summary{end+1} = '';
+
+            % Preprocessing info
+            if isfield(results, 'preprocessing')
+                summary{end+1} = 'PREPROCESSING APPLIED:';
+                summary{end+1} = '----------------------------------------';
+                summary{end+1} = sprintf('Resample: %d Hz', results.preprocessing.resample_rate);
+                summary{end+1} = sprintf('High-pass filter: %.1f Hz', results.preprocessing.hp_cutoff);
+                summary{end+1} = sprintf('Low-pass filter: %d Hz', results.preprocessing.lp_cutoff);
+                summary{end+1} = sprintf('Notch filter: %d Hz (±2 Hz)', results.preprocessing.notch_freq);
+                summary{end+1} = 'Re-reference: Average';
+                summary{end+1} = '';
             end
 
+            % Bad channels info
+            summary{end+1} = 'CHANNEL QUALITY:';
+            summary{end+1} = '----------------------------------------';
+            if ~isempty(results.badChannels)
+                summary{end+1} = sprintf('⚠ WARNING: %d bad channel(s) detected (KEPT in analysis):', length(results.badChannels));
+                if isfield(results, 'badChannelLabels') && ~isempty(results.badChannelLabels)
+                    for i = 1:length(results.badChannelLabels)
+                        summary{end+1} = sprintf('   - %s', results.badChannelLabels{i});
+                    end
+                else
+                    for i = 1:length(results.badChannels)
+                        summary{end+1} = sprintf('   - Channel %d', results.badChannels(i));
+                    end
+                end
+                summary{end+1} = '   (Detected using kurtosis > 7, channels retained per user request)';
+            else
+                summary{end+1} = '✓ All channels good (kurtosis threshold: 7)';
+            end
             summary{end+1} = '';
+
+            % ICA components info
+            if isfield(results, 'removedComponents')
+                summary{end+1} = 'ICA ARTIFACT REMOVAL:';
+                summary{end+1} = '----------------------------------------';
+                if ~isempty(results.removedComponents)
+                    summary{end+1} = sprintf('ICA components removed: %d', length(results.removedComponents));
+                    summary{end+1} = sprintf('   Components: %s', mat2str(results.removedComponents));
+                    summary{end+1} = '   (Auto-flagged: >90%% artifact probability)';
+                else
+                    summary{end+1} = 'No artifact components detected';
+                end
+                summary{end+1} = '';
+            end
+
+            % Event detection info
+            summary{end+1} = 'AI EVENT DETECTION:';
+            summary{end+1} = '----------------------------------------';
+            summary{end+1} = sprintf('Event types detected: %d', length(results.selectedEvents));
+            summary{end+1} = sprintf('Total epochs extracted: %d', sum([results.epochedData.numEpochs]));
+            summary{end+1} = '';
+
+            % ERP Components
             summary{end+1} = 'ERP COMPONENTS:';
             summary{end+1} = '----------------------------------------';
 
@@ -590,19 +699,26 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 end
             end
 
+            % Frequency Bands
             summary{end+1} = 'FREQUENCY BANDS:';
             summary{end+1} = '----------------------------------------';
 
             if isfield(results.freqAnalysis, 'delta')
                 bandNames = {'delta', 'theta', 'alpha', 'beta', 'gamma'};
+                bandRanges = {'0.5-4 Hz', '4-8 Hz', '8-13 Hz', '13-30 Hz', '30-50 Hz'};
                 for b = 1:length(bandNames)
                     bandName = bandNames{b};
                     if isfield(results.freqAnalysis, bandName)
-                        summary{end+1} = sprintf('%s: %.2f μV²/Hz', ...
-                            upper(bandName), results.freqAnalysis.(bandName).meanPower);
+                        summary{end+1} = sprintf('%s (%s): %.2f μV²/Hz', ...
+                            upper(bandName), bandRanges{b}, results.freqAnalysis.(bandName).meanPower);
                     end
                 end
             end
+
+            summary{end+1} = '';
+            summary{end+1} = '========================================';
+            summary{end+1} = 'Analysis completed successfully!';
+            summary{end+1} = '========================================';
 
             app.SummaryTextArea.Value = summary;
         end
