@@ -45,6 +45,16 @@ function aiAnalysis = callAIAnalysis(fieldStats, structure, provider)
 
     % Parse the JSON response
     try
+        % Strip markdown code fences if present (Claude sometimes wraps JSON in ```json...```)
+        response = strtrim(response);
+        if startsWith(response, '```')
+            % Remove opening fence (```json or just ```)
+            response = regexprep(response, '^```\w*\s*', '', 'once');
+            % Remove closing fence
+            response = regexprep(response, '\s*```$', '', 'once');
+            response = strtrim(response);
+        end
+
         aiAnalysis = jsondecode(response);
         fprintf('✓ AI analysis received (confidence: %.0f%%)\n', aiAnalysis.confidence * 100);
     catch ME

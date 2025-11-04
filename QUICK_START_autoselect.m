@@ -70,7 +70,8 @@ end
 try
     % Try MFF import first
     if exist('pop_mffimport', 'file') && (endsWith(mffFilePath, '.mff') || exist(mffFilePath, 'dir'))
-        EEG = pop_mffimport(mffFilePath);
+        % Pass empty cell array {} to automatically import all event types without GUI prompt
+        EEG = pop_mffimport(mffFilePath, {});
     else
         % Fallback to generic EEGLAB load
         EEG = pop_loadset(mffFilePath);
