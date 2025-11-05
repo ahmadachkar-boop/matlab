@@ -43,6 +43,8 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         ERPEventListBox         matlab.ui.control.ListBox
         ERPSelectAllButton      matlab.ui.control.Button
         ERPDeselectAllButton    matlab.ui.control.Button
+        ERPROIDropdown          matlab.ui.control.DropDown
+        ERPROILabel             matlab.ui.control.Label
 
         TopoEventListBox        matlab.ui.control.ListBox
         TopoSelectAllButton     matlab.ui.control.Button
@@ -270,6 +272,21 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             app.ERPDeselectAllButton.Text = 'Clear All';
             app.ERPDeselectAllButton.FontSize = 9;
             app.ERPDeselectAllButton.ButtonPushedFcn = @(btn,event) deselectAllEvents(app);
+
+            % ROI Selection
+            app.ERPROILabel = uilabel(app.ERPTab);
+            app.ERPROILabel.Position = [10 15 85 20];
+            app.ERPROILabel.Text = 'Electrode ROI:';
+            app.ERPROILabel.FontWeight = 'bold';
+            app.ERPROILabel.FontSize = 9;
+
+            app.ERPROIDropdown = uidropdown(app.ERPTab);
+            app.ERPROIDropdown.Position = [95 10 95 25];
+            app.ERPROIDropdown.Items = {'All Channels', 'Frontal', 'Central', 'Parietal', 'Occipital', 'Temporal'};
+            app.ERPROIDropdown.ItemsData = {'all', 'frontal', 'central', 'parietal', 'occipital', 'temporal'};
+            app.ERPROIDropdown.Value = 'central';  % Default to central for N400/P600
+            app.ERPROIDropdown.FontSize = 9;
+            app.ERPROIDropdown.ValueChangedFcn = @(src,event) updateERPPlot(app);
 
             % ERP plot axes (adjusted to make room for listbox)
             app.ERPAxes = uiaxes(app.ERPTab);
@@ -669,6 +686,17 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 return;
             end
 
+            % Get ROI channel selection
+            roiSelection = app.ERPROIDropdown.Value;
+            roiChannels = getROIChannels(app.Results.EEG, roiSelection);
+
+            % Display info about ROI
+            if strcmp(roiSelection, 'all')
+                roiInfo = sprintf('All %d channels', length(roiChannels));
+            else
+                roiInfo = sprintf('%s region (%d channels)', [upper(roiSelection(1)) roiSelection(2:end)], length(roiChannels));
+            end
+
             hold(ax, 'on');
 
             % Use all colors but only plot selected events
@@ -681,7 +709,8 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                     continue;
                 end
 
-                erp = mean(epochedData(i).avgERP, 1);
+                % Average ERP across selected ROI channels only
+                erp = mean(epochedData(i).avgERP(roiChannels, :), 1);
                 timeVec = epochedData(i).timeVector * 1000;
 
                 plot(ax, timeVec, erp, 'LineWidth', 2.5, 'Color', colors(i,:), ...
@@ -704,7 +733,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             xlim(ax, [-200 800]);
             xlabel(ax, 'Time (ms)', 'FontSize', 12, 'FontWeight', 'bold');
             ylabel(ax, 'Amplitude (μV)', 'FontSize', 12, 'FontWeight', 'bold');
-            title(ax, 'ERP Waveforms: N250 (green), N400 (blue), P600 (red)', 'FontSize', 13);
+            title(ax, sprintf('ERP Waveforms: N250 (green), N400 (blue), P600 (red) | %s', roiInfo), 'FontSize', 13);
 
             % Ensure tick labels are visible
             ax.XAxis.TickLabelFormat = '%g';
@@ -820,8 +849,11 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             summary{end+1} = '';
 
             % ERP Components
-            summary{end+1} = 'ERP COMPONENTS:';
+            summary{end+1} = 'ERP COMPONENTS (All Channels):';
             summary{end+1} = '----------------------------------------';
+            summary{end+1} = 'Note: Use the ROI dropdown in the ERP tab to view specific regions.';
+            summary{end+1} = 'Recommended: Central region for N400/P600, Occipital for N250.';
+            summary{end+1} = '';
 
             for i = 1:length(results.erpAnalysis)
                 if results.erpAnalysis(i).numEpochs > 0
@@ -838,6 +870,27 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                         results.erpAnalysis(i).p600.latency * 1000);
                     summary{end+1} = '';
                 end
+            end
+
+            % Add ROI-specific analysis
+            summary{end+1} = '';
+            summary{end+1} = 'REGION-SPECIFIC ANALYSIS:';
+            summary{end+1} = '----------------------------------------';
+
+            % Central region analysis (best for N400/P600)
+            centralChans = getROIChannels(results.EEG, 'central');
+            if ~isempty(centralChans)
+                centralAnalysis = analyzeERPComponentsGUI(results.epochedData, [-0.2, 0.8], centralChans);
+                summary{end+1} = sprintf('Central Region (%d channels) - Recommended for N400/P600:', length(centralChans));
+                for i = 1:length(centralAnalysis)
+                    if centralAnalysis(i).numEpochs > 0
+                        summary{end+1} = sprintf('  %s: N400=%.2f μV @ %.0f ms, P600=%.2f μV @ %.0f ms', ...
+                            centralAnalysis(i).condition, ...
+                            centralAnalysis(i).n400.amplitude, centralAnalysis(i).n400.latency * 1000, ...
+                            centralAnalysis(i).p600.amplitude, centralAnalysis(i).p600.latency * 1000);
+                    end
+                end
+                summary{end+1} = '';
             end
 
             % Frequency Bands
@@ -1009,7 +1062,160 @@ end
 
 %% Helper functions
 
-function erpAnalysis = analyzeERPComponentsGUI(epochedData, timeWindow)
+function channels = getROIChannels(EEG, roiSelection)
+    % GETROICHANNELS - Identify channels belonging to a region of interest
+    %
+    % For EGI HydroCel 128 and other montages, identifies channels by:
+    %   1. Channel labels (if they follow 10-20 naming like Fz, Cz, Pz)
+    %   2. Spatial location (theta/radius from chanlocs)
+    %
+    % Inputs:
+    %   EEG - EEGLAB structure with chanlocs
+    %   roiSelection - 'all', 'frontal', 'central', 'parietal', 'occipital', 'temporal'
+    %
+    % Output:
+    %   channels - Vector of channel indices
+
+    if strcmp(roiSelection, 'all')
+        channels = 1:EEG.nbchan;
+        return;
+    end
+
+    % Check if channel locations exist
+    if ~isfield(EEG, 'chanlocs') || isempty(EEG.chanlocs)
+        warning('No channel locations found. Using all channels.');
+        channels = 1:EEG.nbchan;
+        return;
+    end
+
+    % Try to identify channels by label first (more accurate)
+    channels = getChannelsByLabel(EEG.chanlocs, roiSelection);
+
+    % If label-based selection failed or found too few channels, use spatial approach
+    if length(channels) < 3
+        channels = getChannelsBySpatialLocation(EEG.chanlocs, roiSelection);
+    end
+
+    % Ensure we have at least some channels
+    if isempty(channels)
+        warning('No channels found for ROI "%s". Using all channels.', roiSelection);
+        channels = 1:EEG.nbchan;
+    end
+end
+
+function channels = getChannelsByLabel(chanlocs, roiSelection)
+    % Identify channels by their labels (works for standard 10-20 system)
+    channels = [];
+
+    % Common electrode prefixes for each region
+    switch roiSelection
+        case 'frontal'
+            prefixes = {'Fp', 'AF', 'F', 'FC'};
+            excludes = {'FT', 'T', 'TP', 'P', 'C', 'O'};  % Exclude if followed by these
+        case 'central'
+            prefixes = {'FC', 'C', 'CP'};
+            excludes = {'O', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8'};
+        case 'parietal'
+            prefixes = {'CP', 'P', 'PO'};
+            excludes = {'Fp', 'AF', 'F', 'O1', 'O2', 'Oz'};
+        case 'occipital'
+            prefixes = {'PO', 'O', 'I'};  % I = inion area in EGI
+            excludes = {'Fp', 'AF', 'F', 'C', 'T'};
+        case 'temporal'
+            prefixes = {'FT', 'T', 'TP'};
+            excludes = {'Fp', 'F3', 'F4', 'C3', 'C4', 'P3', 'P4'};
+        otherwise
+            return;
+    end
+
+    for ch = 1:length(chanlocs)
+        if isfield(chanlocs(ch), 'labels') && ~isempty(chanlocs(ch).labels)
+            label = chanlocs(ch).labels;
+
+            % Check if label starts with any of the target prefixes
+            matched = false;
+            for p = 1:length(prefixes)
+                if startsWith(label, prefixes{p}, 'IgnoreCase', true)
+                    matched = true;
+                    break;
+                end
+            end
+
+            % Exclude if it matches exclusion patterns
+            if matched
+                excluded = false;
+                for e = 1:length(excludes)
+                    if contains(label, excludes{e}, 'IgnoreCase', true)
+                        excluded = true;
+                        break;
+                    end
+                end
+                if ~excluded
+                    channels(end+1) = ch;
+                end
+            end
+        end
+    end
+end
+
+function channels = getChannelsBySpatialLocation(chanlocs, roiSelection)
+    % Identify channels by their spatial coordinates (theta/radius)
+    % This works for EGI and other systems where labels don't follow 10-20
+    channels = [];
+
+    for ch = 1:length(chanlocs)
+        if ~isfield(chanlocs(ch), 'theta') || ~isfield(chanlocs(ch), 'radius')
+            continue;
+        end
+
+        theta = chanlocs(ch).theta;  % Angle: nose=+90, left=0, right=180, back=-90
+        radius = chanlocs(ch).radius;  % Distance from vertex: 0=top, 0.5=edge
+
+        % Normalize theta to -180 to 180
+        if theta > 180
+            theta = theta - 360;
+        end
+
+        inROI = false;
+
+        switch roiSelection
+            case 'frontal'
+                % Front half of head, not too lateral
+                inROI = (theta >= 30 && theta <= 150) && (radius < 0.6);
+
+            case 'central'
+                % Middle strip, including central midline
+                % Latitude: -45 to +45 (front-center to back-center)
+                % Longitude: around midline
+                inROI = ((theta >= -45 && theta <= 45) || (theta >= 135 || theta <= -135)) && ...
+                        (radius >= 0.2 && radius < 0.5);
+
+            case 'parietal'
+                % Back-center of head
+                inROI = ((theta >= -135 && theta <= -45) || (theta >= 135 && theta <= 180)) && ...
+                        (radius >= 0.2 && radius < 0.6);
+
+            case 'occipital'
+                % Very back of head
+                inROI = ((theta >= -135 && theta <= -45) || (theta >= 135)) && ...
+                        (radius >= 0.4);
+
+            case 'temporal'
+                % Sides of head
+                inROI = ((theta >= -30 && theta <= 30) || (theta >= 150 || theta <= -150)) && ...
+                        (radius >= 0.4);
+        end
+
+        if inROI
+            channels(end+1) = ch;
+        end
+    end
+end
+
+function erpAnalysis = analyzeERPComponentsGUI(epochedData, timeWindow, roiChannels)
+    % Analyze ERP components (N250, N400, P600)
+    % If roiChannels provided, use only those channels for analysis
+
     fs = 250;
     timeVector = linspace(timeWindow(1), timeWindow(2), round((timeWindow(2)-timeWindow(1))*fs)+1);
 
@@ -1028,7 +1234,12 @@ function erpAnalysis = analyzeERPComponentsGUI(epochedData, timeWindow)
             continue;
         end
 
-        erpGlobal = mean(epochedData(i).avgERP, 1);
+        % Use ROI channels if provided, otherwise use all channels
+        if nargin >= 3 && ~isempty(roiChannels)
+            erpGlobal = mean(epochedData(i).avgERP(roiChannels, :), 1);
+        else
+            erpGlobal = mean(epochedData(i).avgERP, 1);
+        end
 
         [n250Amp, n250Lat] = min(erpGlobal(n250Idx));
         n250LatTime = timeVector(n250Idx);
