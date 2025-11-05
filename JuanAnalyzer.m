@@ -435,11 +435,18 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 % If detection fails, continue without bad channel info
             end
 
-            % Run ICA
+            % Run ICA using FastICA (with fallback to runica if FastICA not available)
             try
-                EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1);
-            catch
-                % Skip ICA if it fails
+                % Try FastICA first (faster and often better results)
+                EEG = runFastICA(EEG, 'approach', 'symm', 'g', 'tanh', 'verbose', 'off');
+            catch ME
+                % Fallback to EEGLAB's runica if FastICA fails or is not installed
+                warning('FastICA failed or not installed, using runica: %s', ME.message);
+                try
+                    EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1);
+                catch
+                    % Skip ICA if it fails
+                end
             end
 
             % Stage 4: Cleaning Signal

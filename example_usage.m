@@ -91,9 +91,14 @@ for i = 1:length(eeg_files)
             warning('Bad channel rejection failed for %s', eeg_files(i).name);
         end
 
-        % ICA
+        % ICA using FastICA (with fallback to runica)
         fprintf('  Running ICA...\n');
-        EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1);
+        try
+            EEG = runFastICA(EEG, 'approach', 'symm', 'g', 'tanh', 'verbose', 'off');
+        catch
+            warning('FastICA failed, using runica');
+            EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1);
+        end
 
         % ICLabel
         fprintf('  Classifying components...\n');
