@@ -951,7 +951,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
             % Run ICA using FastICA (with fallback to runica if FastICA not available)
             try
                 % Try FastICA first (faster and often better results)
-                EEG = runFastICA(EEG, 'approach', 'symm', 'g', 'tanh', 'verbose', 'off');
+                EEG = runFastICA(EEG, 'approach', 'symm', 'g', 'tanh', 'verbose', 'on');
             catch ME
                 % Fallback to EEGLAB's runica if FastICA fails or is not installed
                 warning('FastICA failed or not installed, using runica: %s', ME.message);

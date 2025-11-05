@@ -94,7 +94,7 @@ for i = 1:length(eeg_files)
         % ICA using FastICA (with fallback to runica)
         fprintf('  Running ICA...\n');
         try
-            EEG = runFastICA(EEG, 'approach', 'symm', 'g', 'tanh', 'verbose', 'off');
+            EEG = runFastICA(EEG, 'approach', 'symm', 'g', 'tanh', 'verbose', 'on');
         catch
             warning('FastICA failed, using runica');
             EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1);
