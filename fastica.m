@@ -17,6 +17,7 @@ function [icasig, A, W] = fastica(mixedsig, varargin)
     %   'numOfIC'     - Number of ICs to extract (default: all)
     %   'g'           - Nonlinearity: 'pow3', 'tanh', 'gauss' (default: 'tanh')
     %   'maxNumIterations' - Max iterations (default: 1000)
+    %   'maxFinetune' - Max fine-tuning iterations (default: 100)
     %   'epsilon'     - Convergence threshold (default: 0.0001)
     %   'verbose'     - 'on' or 'off' (default: 'off')
     %   'stabilization' - 'on' or 'off' (default: 'on')
@@ -38,6 +39,7 @@ function [icasig, A, W] = fastica(mixedsig, varargin)
     addParameter(p, 'numOfIC', [], @isnumeric);
     addParameter(p, 'g', 'tanh', @ischar);
     addParameter(p, 'maxNumIterations', 1000, @isnumeric);
+    addParameter(p, 'maxFinetune', 100, @isnumeric);  % Added for compatibility
     addParameter(p, 'epsilon', 0.0001, @isnumeric);
     addParameter(p, 'verbose', 'off', @ischar);
     addParameter(p, 'stabilization', 'on', @ischar);
