@@ -868,7 +868,14 @@ function freqAnalysis = analyzeFrequencyBandsGUI(EEG)
     freqAnalysis = struct();
 
     try
-        [psd, freqs] = pwelch(EEG.data', [], [], [], EEG.srate);
+        % Detrend and remove DC offset to prevent low-frequency contamination
+        dataDetrended = detrend(EEG.data', 'constant');  % Remove DC offset
+        dataDetrended = detrend(dataDetrended, 'linear')';  % Remove linear trend
+
+        % Use Welch's method for power spectral density
+        % Increased window size for better frequency resolution at low frequencies
+        windowSize = min(EEG.srate * 4, size(dataDetrended, 2));  % 4-second windows
+        [psd, freqs] = pwelch(dataDetrended', windowSize, [], [], EEG.srate);
         psd = psd';
 
         bandNames = fieldnames(bands);
@@ -877,8 +884,10 @@ function freqAnalysis = analyzeFrequencyBandsGUI(EEG)
             bandRange = bands.(bandName);
 
             freqIdx = freqs >= bandRange(1) & freqs <= bandRange(2);
-            bandPower = mean(psd(:, freqIdx), 2);
-            meanPower = mean(bandPower);
+
+            % Average power across frequency bins, then across channels
+            bandPower = mean(psd(:, freqIdx), 2);  % Power per channel
+            meanPower = mean(bandPower);  % Mean across channels
             stdPower = std(bandPower);
 
             freqAnalysis.(bandName).meanPower = meanPower;
@@ -888,6 +897,7 @@ function freqAnalysis = analyzeFrequencyBandsGUI(EEG)
 
         freqAnalysis.psd = psd;
         freqAnalysis.freqs = freqs;
+
     catch ME
         warning('Frequency analysis failed: %s', ME.message);
     end
