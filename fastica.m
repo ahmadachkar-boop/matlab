@@ -65,15 +65,15 @@ function [icasig, A, W] = fastica(mixedsig, varargin)
     end
 
     %% Step 1: Center the data
-    meanX = mean(X, 2);
-    X = X - repmat(meanX, 1, m);
+    X = X - mean(X, 2);  % Implicit broadcasting (faster)
 
     %% Step 2: Whiten the data
     if verbose
         fprintf('FastICA: Whitening data...\n');
     end
 
-    covMatrix = cov(X');
+    % Compute covariance matrix directly (faster than cov for large data)
+    covMatrix = (X * X') / (m - 1);
     [E, D] = eig(covMatrix);
 
     % Sort eigenvalues in descending order
@@ -126,8 +126,11 @@ function [icasig, A, W] = fastica(mixedsig, varargin)
             for iter = 1:params.maxNumIterations
                 w_old = w;
 
-                % FastICA update rule
-                w = mean(repmat(g(w' * Z), n, 1) .* Z, 2) - mean(g_prime(w' * Z)) * w;
+                % FastICA update rule (vectorized for speed)
+                wZ = w' * Z;  % 1 x m vector
+                gwtx = g(wZ);
+                gpwtx = g_prime(wZ);
+                w = (Z * gwtx') / m - mean(gpwtx) * w;
 
                 % Orthogonalization (Gram-Schmidt)
                 if i > 1
@@ -163,11 +166,12 @@ function [icasig, A, W] = fastica(mixedsig, varargin)
         for iter = 1:params.maxNumIterations
             W_old = W;
 
-            % FastICA update for all components
-            hypTan = g(W * Z);
-            hypTan_deriv = g_prime(W * Z);
+            % FastICA update for all components (vectorized for speed)
+            WZ = W * Z;  % numOfIC x m
+            hypTan = g(WZ);
+            hypTan_deriv = g_prime(WZ);
 
-            W = (hypTan * Z') / m - repmat(mean(hypTan_deriv, 2), 1, n) .* W;
+            W = (hypTan * Z') / m - mean(hypTan_deriv, 2) .* W;
 
             % Symmetric orthogonalization (numerically stable)
             W = symmetricOrthogonalization(W);
