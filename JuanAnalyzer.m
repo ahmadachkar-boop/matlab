@@ -966,18 +966,17 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                     tempFig = figure('Visible', 'off', 'Position', [0 0 400 400]);
                     tempAx = axes(tempFig);
 
-                    % Plot topomap with proper head shape and constrained interpolation
+                    % Plot topomap with proper head shape
+                    % Note: HydroCel GSN 128 uses 2D planar layout (all z=0)
+                    % Let topoplot auto-detect the head boundary from the data
                     topoplot(topoData, app.Results.EEG.chanlocs, ...
                         'electrodes', 'on', ...
                         'style', 'map', ...
                         'maplimits', 'absmax', ...
                         'emarker', {'.','k',4,1}, ...
-                        'plotrad', 0.5, ...          % Constrain plotting to head radius
-                        'headrad', 0.5, ...          % Set head radius
-                        'intrad', 0.5, ...           % Interpolate only within head
                         'gridscale', 150, ...        % Fine interpolation grid
-                        'conv', 'on', ...            % Convert coordinates if needed
-                        'whitebk', 'on');            % White background
+                        'whitebk', 'on', ...         % White background
+                        'nosedir', '+Y');            % Front is +Y in this layout
 
                     % Capture the plot as an image
                     frame = getframe(tempFig);
