@@ -35,6 +35,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         % Results Screen
         ResultsTabGroup         matlab.ui.container.TabGroup
         ERPTab                  matlab.ui.container.Tab
+        TopoTab                 matlab.ui.container.Tab
         FreqTab                 matlab.ui.container.Tab
         SummaryTab              matlab.ui.container.Tab
 
@@ -42,6 +43,14 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         ERPEventListBox         matlab.ui.control.ListBox
         ERPSelectAllButton      matlab.ui.control.Button
         ERPDeselectAllButton    matlab.ui.control.Button
+
+        TopoEventListBox        matlab.ui.control.ListBox
+        TopoSelectAllButton     matlab.ui.control.Button
+        TopoDeselectAllButton   matlab.ui.control.Button
+        TopoTimeSlider          matlab.ui.control.Slider
+        TopoTimeLabel           matlab.ui.control.Label
+        TopoPanel               matlab.ui.container.Panel
+
         FreqAxes1               matlab.ui.control.UIAxes
         FreqAxes2               matlab.ui.control.UIAxes
         SummaryTextArea         matlab.ui.control.TextArea
@@ -265,6 +274,62 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % ERP plot axes (adjusted to make room for listbox)
             app.ERPAxes = uiaxes(app.ERPTab);
             app.ERPAxes.Position = [210 20 770 420];
+
+            % Topographic Maps Tab
+            app.TopoTab = uitab(app.ResultsTabGroup);
+            app.TopoTab.Title = '🗺️ Topographic Maps';
+
+            % Event selection listbox for topomaps
+            topoEventLabel = uilabel(app.TopoTab);
+            topoEventLabel.Position = [10 390 180 20];
+            topoEventLabel.Text = 'Select Events to Display:';
+            topoEventLabel.FontWeight = 'bold';
+            topoEventLabel.FontSize = 10;
+
+            app.TopoEventListBox = uilistbox(app.TopoTab);
+            app.TopoEventListBox.Position = [10 80 180 310];
+            app.TopoEventListBox.Multiselect = 'on';
+            app.TopoEventListBox.ValueChangedFcn = @(src,event) updateTopoMaps(app);
+
+            % Select All button for topomaps
+            app.TopoSelectAllButton = uibutton(app.TopoTab, 'push');
+            app.TopoSelectAllButton.Position = [10 50 85 25];
+            app.TopoSelectAllButton.Text = 'Select All';
+            app.TopoSelectAllButton.FontSize = 9;
+            app.TopoSelectAllButton.ButtonPushedFcn = @(btn,event) selectAllTopoEvents(app);
+
+            % Deselect All button for topomaps
+            app.TopoDeselectAllButton = uibutton(app.TopoTab, 'push');
+            app.TopoDeselectAllButton.Position = [105 50 85 25];
+            app.TopoDeselectAllButton.Text = 'Clear All';
+            app.TopoDeselectAllButton.FontSize = 9;
+            app.TopoDeselectAllButton.ButtonPushedFcn = @(btn,event) deselectAllTopoEvents(app);
+
+            % Time slider for selecting time point
+            timeSliderLabel = uilabel(app.TopoTab);
+            timeSliderLabel.Position = [210 410 150 20];
+            timeSliderLabel.Text = 'Select Time Point:';
+            timeSliderLabel.FontWeight = 'bold';
+            timeSliderLabel.FontSize = 10;
+
+            app.TopoTimeLabel = uilabel(app.TopoTab);
+            app.TopoTimeLabel.Position = [370 410 100 20];
+            app.TopoTimeLabel.Text = '0 ms';
+            app.TopoTimeLabel.FontSize = 10;
+            app.TopoTimeLabel.FontWeight = 'bold';
+            app.TopoTimeLabel.FontColor = [0.2 0.4 0.8];
+
+            app.TopoTimeSlider = uislider(app.TopoTab);
+            app.TopoTimeSlider.Position = [210 390 550 3];
+            app.TopoTimeSlider.Limits = [-200 800];
+            app.TopoTimeSlider.Value = 400;  % Default to N400 time
+            app.TopoTimeSlider.ValueChangedFcn = @(src,event) updateTopoMaps(app);
+
+            % Panel to hold topographic maps
+            app.TopoPanel = uipanel(app.TopoTab);
+            app.TopoPanel.Position = [210 20 770 360];
+            app.TopoPanel.BackgroundColor = [1 1 1];
+            app.TopoPanel.BorderType = 'none';
 
             % Frequency Tab
             app.FreqTab = uitab(app.ResultsTabGroup);
@@ -551,19 +616,29 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         function displayResults(app)
             % Display results in tabs
 
-            % Populate event listbox
+            % Populate event listboxes
             epochedData = app.Results.epochedData;
             eventNames = cell(length(epochedData), 1);
             for i = 1:length(epochedData)
                 eventNames{i} = strrep(epochedData(i).eventType, '_', ' ');
             end
+
+            % ERP listbox
             app.ERPEventListBox.Items = eventNames;
             app.ERPEventListBox.ItemsData = 1:length(eventNames);
             app.ERPEventListBox.Value = 1:length(eventNames);  % Select all by default
 
+            % Topomap listbox
+            app.TopoEventListBox.Items = eventNames;
+            app.TopoEventListBox.ItemsData = 1:length(eventNames);
+            app.TopoEventListBox.Value = 1:min(4, length(eventNames));  % Select first 4 by default
+
             % ERP Tab
             cla(app.ERPAxes);
             plotERPResults(app, app.ERPAxes);
+
+            % Topographic Maps Tab
+            updateTopoMaps(app);
 
             % Frequency Tab
             cla(app.FreqAxes1);
@@ -622,10 +697,17 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             plot(ax, [0 0], yLim, 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
             plot(ax, [-200 800], [0 0], 'k-', 'LineWidth', 0.5, 'HandleVisibility', 'off');
 
-            xlabel(ax, 'Time (ms)');
-            ylabel(ax, 'Amplitude (μV)');
-            title(ax, 'ERP Waveforms: N250 (green), N400 (blue), P600 (red)');
-            legend(ax, 'Location', 'best');
+            % Set x-axis limits and labels explicitly
+            xlim(ax, [-200 800]);
+            xlabel(ax, 'Time (ms)', 'FontSize', 12, 'FontWeight', 'bold');
+            ylabel(ax, 'Amplitude (μV)', 'FontSize', 12, 'FontWeight', 'bold');
+            title(ax, 'ERP Waveforms: N250 (green), N400 (blue), P600 (red)', 'FontSize', 13);
+
+            % Ensure tick labels are visible
+            ax.XAxis.TickLabelFormat = '%g';
+            ax.FontSize = 10;
+
+            legend(ax, 'Location', 'best', 'FontSize', 9);
             grid(ax, 'on');
             hold(ax, 'off');
         end
@@ -807,6 +889,98 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Deselect all events in the listbox
             app.ERPEventListBox.Value = [];
             updateERPPlot(app);
+        end
+
+        function updateTopoMaps(app)
+            % Update topographic maps when event or time selection changes
+            plotTopoMaps(app);
+        end
+
+        function selectAllTopoEvents(app)
+            % Select all events for topomaps
+            app.TopoEventListBox.Value = 1:length(app.TopoEventListBox.Items);
+            updateTopoMaps(app);
+        end
+
+        function deselectAllTopoEvents(app)
+            % Deselect all events for topomaps
+            app.TopoEventListBox.Value = [];
+            updateTopoMaps(app);
+        end
+
+        function plotTopoMaps(app)
+            % Plot topographic maps for selected events at selected time
+
+            % Clear panel
+            delete(app.TopoPanel.Children);
+
+            % Get selected events
+            selectedIndices = app.TopoEventListBox.Value;
+            if isempty(selectedIndices)
+                % Show message if nothing selected
+                msgLabel = uilabel(app.TopoPanel);
+                msgLabel.Position = [200 150 400 60];
+                msgLabel.Text = 'No events selected. Select events from the list.';
+                msgLabel.HorizontalAlignment = 'center';
+                msgLabel.FontSize = 14;
+                msgLabel.FontColor = [0.5 0.5 0.5];
+                app.TopoTimeLabel.Text = sprintf('%.0f ms', app.TopoTimeSlider.Value);
+                return;
+            end
+
+            % Get time point
+            targetTime = app.TopoTimeSlider.Value / 1000;  % Convert ms to seconds
+            app.TopoTimeLabel.Text = sprintf('%.0f ms', app.TopoTimeSlider.Value);
+
+            epochedData = app.Results.epochedData;
+            nMaps = length(selectedIndices);
+
+            % Calculate grid layout (max 4 columns)
+            nCols = min(4, nMaps);
+            nRows = ceil(nMaps / nCols);
+
+            mapWidth = floor(770 / nCols) - 10;
+            mapHeight = floor(360 / nRows) - 10;
+
+            % Plot each selected event
+            for i = 1:nMaps
+                eventIdx = selectedIndices(i);
+
+                % Calculate position in grid
+                row = floor((i-1) / nCols);
+                col = mod(i-1, nCols);
+                xPos = 5 + col * (mapWidth + 10);
+                yPos = 360 - (row + 1) * (mapHeight + 10);
+
+                % Create axes for this topomap
+                ax = uiaxes(app.TopoPanel);
+                ax.Position = [xPos yPos mapWidth mapHeight];
+
+                % Get ERP data at this time point
+                [~, timeIdx] = min(abs(epochedData(eventIdx).timeVector - targetTime));
+                topoData = epochedData(eventIdx).avgERP(:, timeIdx);
+
+                % Plot topomap
+                try
+                    topoplot(topoData, app.Results.EEG.chanlocs, ...
+                        'Parent', ax, ...
+                        'electrodes', 'on', ...
+                        'style', 'map', ...
+                        'maplimits', 'absmax', ...
+                        'conv', 'off');
+
+                    title(ax, strrep(epochedData(eventIdx).eventType, '_', ' '), ...
+                        'FontSize', 9, 'FontWeight', 'bold', 'Interpreter', 'none');
+                catch
+                    % Fallback if topoplot fails - simple heatmap
+                    imagesc(ax, reshape(topoData, [], 1));
+                    colorbar(ax);
+                    title(ax, strrep(epochedData(eventIdx).eventType, '_', ' '), ...
+                        'FontSize', 9, 'FontWeight', 'bold', 'Interpreter', 'none');
+                    ax.XTick = [];
+                    ax.YTick = [];
+                end
+            end
         end
     end
 end
