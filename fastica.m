@@ -158,7 +158,7 @@ function [icasig, A, W] = fastica(mixedsig, varargin)
         % Symmetric approach (all at once)
         % Initialize randomly
         W = randn(numOfIC, n);
-        W = W * inv(W * W')^(1/2);  % Orthogonalize
+        W = symmetricOrthogonalization(W);  % Orthogonalize
 
         for iter = 1:params.maxNumIterations
             W_old = W;
@@ -169,8 +169,8 @@ function [icasig, A, W] = fastica(mixedsig, varargin)
 
             W = (hypTan * Z') / m - repmat(mean(hypTan_deriv, 2), 1, n) .* W;
 
-            % Symmetric orthogonalization
-            W = W * inv(W * W')^(1/2);
+            % Symmetric orthogonalization (numerically stable)
+            W = symmetricOrthogonalization(W);
 
             % Check convergence
             delta = max(max(abs(abs(W * W_old') - eye(numOfIC))));
@@ -205,4 +205,29 @@ function [icasig, A, W] = fastica(mixedsig, varargin)
     if verbose
         fprintf('FastICA: Complete! Extracted %d independent components\n', size(icasig, 1));
     end
+end
+
+%% Local helper function for numerically stable symmetric orthogonalization
+function W = symmetricOrthogonalization(W)
+    % Symmetric orthogonalization using eigenvalue decomposition
+    % This is more numerically stable than using inv(W * W')^(1/2)
+    %
+    % The goal is to compute: W * (W * W')^(-1/2)
+
+    % Compute W * W'
+    WWT = W * W';
+
+    % Eigenvalue decomposition
+    [E, D] = eig(WWT);
+
+    % Ensure eigenvalues are real and positive (numerical stability)
+    eigValues = real(diag(D));
+    eigValues = max(eigValues, eps);  % Prevent division by zero or negative values
+
+    % Compute (W * W')^(-1/2) using eigenvalue decomposition
+    % (W * W')^(-1/2) = E * D^(-1/2) * E'
+    D_sqrt_inv = diag(1 ./ sqrt(eigValues));
+
+    % Apply orthogonalization
+    W = D_sqrt_inv * E' * W;
 end
