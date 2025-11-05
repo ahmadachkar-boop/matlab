@@ -966,14 +966,18 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                     tempFig = figure('Visible', 'off', 'Position', [0 0 400 400]);
                     tempAx = axes(tempFig);
 
-                    % Plot topomap with proper head shape
+                    % Plot topomap with proper head shape and constrained interpolation
                     topoplot(topoData, app.Results.EEG.chanlocs, ...
                         'electrodes', 'on', ...
                         'style', 'map', ...
                         'maplimits', 'absmax', ...
-                        'electrodes', 'ptslabels', ...
                         'emarker', {'.','k',4,1}, ...
-                        'conv', 'on');
+                        'plotrad', 0.5, ...          % Constrain plotting to head radius
+                        'headrad', 0.5, ...          % Set head radius
+                        'intrad', 0.5, ...           % Interpolate only within head
+                        'gridscale', 150, ...        % Fine interpolation grid
+                        'conv', 'on', ...            % Convert coordinates if needed
+                        'whitebk', 'on');            % White background
 
                     % Capture the plot as an image
                     frame = getframe(tempFig);
