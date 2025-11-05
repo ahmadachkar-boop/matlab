@@ -60,6 +60,24 @@ function epochedData = epochEEGByEventsUniversal(EEG, selectedConditions, timeWi
     fprintf('Epoch length: %d samples\n', epochLength);
     fprintf('Format: %s\n', structure.format);
     fprintf('Grouping by: %s\n', strjoin(groupByFields, ', '));
+
+    % Double-check: Filter out any practice trials that might have slipped through
+    practicePatterns = {'Practice', 'practice', 'Prac', 'Training', 'training'};
+    originalCount = length(selectedConditions);
+    keepMask = true(length(selectedConditions), 1);
+    for i = 1:length(selectedConditions)
+        for p = 1:length(practicePatterns)
+            if contains(selectedConditions{i}, practicePatterns{p}, 'IgnoreCase', true)
+                keepMask(i) = false;
+                break;
+            end
+        end
+    end
+    selectedConditions = selectedConditions(keepMask);
+    if originalCount ~= length(selectedConditions)
+        fprintf('Filtered out %d practice conditions\n', originalCount - length(selectedConditions));
+    end
+
     fprintf('----------------------------------------\n\n');
 
     for typeIdx = 1:length(selectedConditions)

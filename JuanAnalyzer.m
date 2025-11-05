@@ -470,6 +470,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             [selectedEvents, structure, discovery] = autoSelectTrialEventsUniversal(EEG, ...
                 'UseAI', 'always', ...
                 'AIProvider', provider, ...
+                'ExcludePractice', true, ...
                 'Display', false);
 
             % Stage 6: Extracting Epochs
@@ -539,7 +540,8 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             hold(ax, 'on');
 
-            nConds = min(6, length(epochedData));  % Limit to 6 for visibility
+            % Display ALL event types, not just first 6
+            nConds = length(epochedData);
             colors = lines(nConds);
 
             for i = 1:nConds

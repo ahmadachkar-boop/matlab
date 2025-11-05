@@ -213,8 +213,11 @@ function discovery = discoverEventFields(EEG, structure, varargin)
     discovery.groupingFields = prioritizeGroupingFields(discovery.groupingFields, discovery.fieldStats);
 
     % Auto-detect additional practice patterns
+    % More specific patterns to avoid false positives
     discovery.practicePatterns = [discovery.practicePatterns, ...
-        {'Prac', 'PracSlow', 'Practice', 'Training', '_a_', '_s_', '_w_', '_s1_'}];
+        {'Prac', 'PracSlow', 'Practice', 'Training', 'practice', 'training', ...
+         'a_Practice', 's_Practice', 'w_Practice', 's1_Practice', ...
+         '1_Practice', '2_Practice', '3_Practice'}];
     discovery.practicePatterns = unique(discovery.practicePatterns);
 
     % Calculate heuristic confidence
