@@ -1388,6 +1388,12 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                 colWidth = floor((1100 - 40) / colsPerRow);
                 numRows = ceil(numEvents / colsPerRow);
 
+                % Adjust panel height if multiple rows needed
+                panelHeight = 700;  % Height per event panel
+                if numRows > 1
+                    app.EpochPanel.Position(4) = numRows * (panelHeight + 20);  % Add spacing between rows
+                end
+
                 % Create a detailed panel for each event type
                 for i = 1:numEvents
                     epochData = app.EpochedData(i);
@@ -1400,7 +1406,7 @@ classdef EEGQualityAnalyzer < matlab.apps.AppBase
                     row = floor((i-1) / colsPerRow);
                     col = mod(i-1, colsPerRow);
                     xPos = 20 + col * colWidth;
-                    yPos = 30;  % Position at bottom with small margin (panels are 700px, EpochPanel is 750px)
+                    yPos = app.EpochPanel.Position(4) - (row + 1) * panelHeight - row * 20;  % Stack from top
 
                     % Create column panel for this event
                     eventPanel = uipanel(app.EpochPanel);
