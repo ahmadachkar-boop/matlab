@@ -979,7 +979,6 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                         'emarker', {'.','k',4,1}, ...
                         'gridscale', 150, ...        % Fine interpolation grid
                         'intrad', 0.5, ...           % Interpolate only within head circle
-                        'noplot', {'off'}, ...       % Explicitly enable all plotting
                         'whitebk', 'on', ...         % White background
                         'nosedir', '+Y');            % Front is +Y in this layout
 
