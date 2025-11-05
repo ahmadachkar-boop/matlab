@@ -530,9 +530,11 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 % If detection fails, continue without bad channel info
             end
 
-            % Run ICA
+            % Run ICA with PCA reduction for speed
+            % Full 128 channels is very slow (~15-30 min)
+            % PCA to 40 components: ~3-5x faster, retains ~95% variance
             try
-                EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1);
+                EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1, 'pca', 40);
             catch
                 % Skip ICA if it fails
             end
