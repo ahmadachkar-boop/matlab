@@ -74,6 +74,18 @@ function EEG = runFastICA(EEG, varargin)
         numOfIC = min(params.numOfIC, nchans);
     end
 
+    %% Check if dataset is too large for efficient FastICA
+    % For high-density EEG (>64 channels), use runica which is more robust
+    if nchans > 64
+        if strcmp(params.verbose, 'on')
+            fprintf('High-density EEG detected (%d channels)\n', nchans);
+            fprintf('Using runica for better convergence with large datasets...\n');
+        end
+        % Fall back to runica immediately for large datasets
+        EEG = pop_runica(EEG, 'icatype', 'runica', 'extended', 1);
+        return;
+    end
+
     if strcmp(params.verbose, 'on')
         fprintf('Running FastICA on %d channels, extracting %d components...\n', nchans, numOfIC);
     end
