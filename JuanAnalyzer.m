@@ -39,6 +39,9 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         SummaryTab              matlab.ui.container.Tab
 
         ERPAxes                 matlab.ui.control.UIAxes
+        ERPEventListBox         matlab.ui.control.ListBox
+        ERPSelectAllButton      matlab.ui.control.Button
+        ERPDeselectAllButton    matlab.ui.control.Button
         FreqAxes1               matlab.ui.control.UIAxes
         FreqAxes2               matlab.ui.control.UIAxes
         SummaryTextArea         matlab.ui.control.TextArea
@@ -233,8 +236,35 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             app.ERPTab = uitab(app.ResultsTabGroup);
             app.ERPTab.Title = '📊 ERP Components';
 
+            % Event selection listbox
+            eventLabel = uilabel(app.ERPTab);
+            eventLabel.Position = [10 390 180 20];
+            eventLabel.Text = 'Select Events to Display:';
+            eventLabel.FontWeight = 'bold';
+            eventLabel.FontSize = 10;
+
+            app.ERPEventListBox = uilistbox(app.ERPTab);
+            app.ERPEventListBox.Position = [10 80 180 310];
+            app.ERPEventListBox.Multiselect = 'on';
+            app.ERPEventListBox.ValueChangedFcn = @(src,event) updateERPPlot(app);
+
+            % Select All button
+            app.ERPSelectAllButton = uibutton(app.ERPTab, 'push');
+            app.ERPSelectAllButton.Position = [10 50 85 25];
+            app.ERPSelectAllButton.Text = 'Select All';
+            app.ERPSelectAllButton.FontSize = 9;
+            app.ERPSelectAllButton.ButtonPushedFcn = @(btn,event) selectAllEvents(app);
+
+            % Deselect All button
+            app.ERPDeselectAllButton = uibutton(app.ERPTab, 'push');
+            app.ERPDeselectAllButton.Position = [105 50 85 25];
+            app.ERPDeselectAllButton.Text = 'Clear All';
+            app.ERPDeselectAllButton.FontSize = 9;
+            app.ERPDeselectAllButton.ButtonPushedFcn = @(btn,event) deselectAllEvents(app);
+
+            % ERP plot axes (adjusted to make room for listbox)
             app.ERPAxes = uiaxes(app.ERPTab);
-            app.ERPAxes.Position = [20 20 960 420];
+            app.ERPAxes.Position = [210 20 770 420];
 
             % Frequency Tab
             app.FreqTab = uitab(app.ResultsTabGroup);
@@ -521,6 +551,16 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         function displayResults(app)
             % Display results in tabs
 
+            % Populate event listbox
+            epochedData = app.Results.epochedData;
+            eventNames = cell(length(epochedData), 1);
+            for i = 1:length(epochedData)
+                eventNames{i} = strrep(epochedData(i).eventType, '_', ' ');
+            end
+            app.ERPEventListBox.Items = eventNames;
+            app.ERPEventListBox.ItemsData = 1:length(eventNames);
+            app.ERPEventListBox.Value = 1:length(eventNames);  % Select all by default
+
             % ERP Tab
             cla(app.ERPAxes);
             plotERPResults(app, app.ERPAxes);
@@ -538,13 +578,27 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             epochedData = app.Results.epochedData;
             erpAnalysis = app.Results.erpAnalysis;
 
+            % Get selected event indices from listbox
+            selectedIndices = app.ERPEventListBox.Value;
+            if isempty(selectedIndices)
+                % If nothing selected, clear plot and show message
+                cla(ax);
+                text(ax, 0.5, 0.5, 'No events selected. Select events from the list.', ...
+                    'HorizontalAlignment', 'center', 'Units', 'normalized', ...
+                    'FontSize', 12, 'Color', [0.5 0.5 0.5]);
+                ax.XTick = [];
+                ax.YTick = [];
+                return;
+            end
+
             hold(ax, 'on');
 
-            % Display ALL event types, not just first 6
+            % Use all colors but only plot selected events
             nConds = length(epochedData);
             colors = lines(nConds);
 
-            for i = 1:nConds
+            % Only plot selected events
+            for i = selectedIndices
                 if epochedData(i).numEpochs == 0
                     continue;
                 end
@@ -552,7 +606,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 erp = mean(epochedData(i).avgERP, 1);
                 timeVec = epochedData(i).timeVector * 1000;
 
-                plot(ax, timeVec, erp, 'LineWidth', 2, 'Color', colors(i,:), ...
+                plot(ax, timeVec, erp, 'LineWidth', 2.5, 'Color', colors(i,:), ...
                     'DisplayName', strrep(epochedData(i).eventType, '_', ' '));
             end
 
@@ -735,6 +789,24 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             save(fullfile(path, file), 'results');
 
             uialert(app.UIFigure, 'Results saved successfully!', 'Export Complete', 'Icon', 'success');
+        end
+
+        function updateERPPlot(app)
+            % Update ERP plot when event selection changes
+            cla(app.ERPAxes);
+            plotERPResults(app, app.ERPAxes);
+        end
+
+        function selectAllEvents(app)
+            % Select all events in the listbox
+            app.ERPEventListBox.Value = 1:length(app.ERPEventListBox.Items);
+            updateERPPlot(app);
+        end
+
+        function deselectAllEvents(app)
+            % Deselect all events in the listbox
+            app.ERPEventListBox.Value = [];
+            updateERPPlot(app);
         end
     end
 end
