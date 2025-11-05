@@ -31,7 +31,11 @@ function optimize_ica_performance()
 
     % 4. Check for Parallel Computing Toolbox
     hasParallel = license('test', 'Distrib_Computing_Toolbox');
-    fprintf('\nParallel Computing Toolbox: %s\n', char("❌" + "✓" * hasParallel));
+    if hasParallel
+        fprintf('\nParallel Computing Toolbox: Yes\n');
+    else
+        fprintf('\nParallel Computing Toolbox: No\n');
+    end
 
     if hasParallel
         try
