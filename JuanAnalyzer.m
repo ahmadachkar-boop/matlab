@@ -960,25 +960,40 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 [~, timeIdx] = min(abs(epochedData(eventIdx).timeVector - targetTime));
                 topoData = epochedData(eventIdx).avgERP(:, timeIdx);
 
-                % Plot topomap
+                % Plot topomap using temporary figure (topoplot doesn't work with uiaxes)
                 try
+                    % Create hidden figure with traditional axes
+                    tempFig = figure('Visible', 'off', 'Position', [0 0 400 400]);
+                    tempAx = axes(tempFig);
+
+                    % Plot topomap with proper head shape
                     topoplot(topoData, app.Results.EEG.chanlocs, ...
-                        'Parent', ax, ...
                         'electrodes', 'on', ...
                         'style', 'map', ...
                         'maplimits', 'absmax', ...
-                        'conv', 'off');
+                        'electrodes', 'ptslabels', ...
+                        'emarker', {'.','k',4,1}, ...
+                        'conv', 'on');
+
+                    % Capture the plot as an image
+                    frame = getframe(tempFig);
+                    topoImage = frame.cdata;
+                    close(tempFig);
+
+                    % Display image in uiaxes
+                    imagesc(ax, topoImage);
+                    axis(ax, 'off');
+                    axis(ax, 'image');
 
                     title(ax, strrep(epochedData(eventIdx).eventType, '_', ' '), ...
                         'FontSize', 9, 'FontWeight', 'bold', 'Interpreter', 'none');
-                catch
-                    % Fallback if topoplot fails - simple heatmap
-                    imagesc(ax, reshape(topoData, [], 1));
-                    colorbar(ax);
-                    title(ax, strrep(epochedData(eventIdx).eventType, '_', ' '), ...
-                        'FontSize', 9, 'FontWeight', 'bold', 'Interpreter', 'none');
-                    ax.XTick = [];
-                    ax.YTick = [];
+                catch ME
+                    % Fallback if topoplot fails
+                    cla(ax);
+                    text(ax, 0.5, 0.5, sprintf('Error: %s', ME.message), ...
+                        'HorizontalAlignment', 'center', ...
+                        'FontSize', 8, 'Color', 'r');
+                    axis(ax, 'off');
                 end
             end
         end
