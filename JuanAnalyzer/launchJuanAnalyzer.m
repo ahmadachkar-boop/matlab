@@ -64,6 +64,11 @@ function launchJuanAnalyzer()
         fprintf('    Install from EEGLAB Plugin Manager if needed\n');
     end
 
+    % Add current directory to path (where JuanAnalyzer files are)
+    currentDir = fileparts(mfilename('fullpath'));
+    addpath(currentDir);
+    fprintf('✓ JuanAnalyzer path added: %s\n', currentDir);
+
     % Check AI integration files
     fprintf('Checking AI integration...\n');
     if exist('autoSelectTrialEventsUniversal.m', 'file')
