@@ -548,8 +548,9 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 try
                     EEG = pop_iclabel(EEG, 'default');
 
-                    % Auto-flag artifact components (exact thresholds from launchEEGAnalyzer)
-                    EEG = pop_icflag(EEG, [0 0; 0.9 1; 0.9 1; 0.9 1; 0.9 1; 0.9 1; 0 0]);
+                    % Auto-flag artifact components at 75% confidence threshold
+                    % [Brain; Muscle; Eye; Heart; Line Noise; Channel Noise; Other]
+                    EEG = pop_icflag(EEG, [0 0; 0.75 1; 0.75 1; 0.75 1; 0.75 1; 0.75 1; 0 0]);
 
                     % Remove flagged components
                     bad_comps = find(EEG.reject.gcompreject);
@@ -804,7 +805,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 if ~isempty(results.removedComponents)
                     summary{end+1} = sprintf('ICA components removed: %d', length(results.removedComponents));
                     summary{end+1} = sprintf('   Components: %s', mat2str(results.removedComponents));
-                    summary{end+1} = '   (Auto-flagged: >90%% artifact probability)';
+                    summary{end+1} = '   (Auto-flagged: >75%% artifact probability)';
                 else
                     summary{end+1} = 'No artifact components detected';
                 end
