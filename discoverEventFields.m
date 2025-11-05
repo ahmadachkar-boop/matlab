@@ -259,8 +259,26 @@ function discovery = discoverEventFields(EEG, structure, varargin)
             fprintf('Heuristic grouping: %s\n', strjoin(discovery.groupingFields, ', '));
             fprintf('AI grouping:        %s\n', strjoin(aiAnalysis.grouping_fields, ', '));
 
-            % Use AI recommendations if confidence is higher
-            if aiAnalysis.confidence >= heuristicConfidence
+            % Decide whether to use AI recommendations
+            % When mode is 'always', always use AI regardless of confidence
+            % Otherwise, only use AI if confidence is higher than heuristic
+            if strcmp(useAIMode, 'always')
+                fprintf('✓ Using AI recommendations (mode: always)\n');
+                discovery.groupingFields = aiAnalysis.grouping_fields;
+                discovery.excludeFields = union(discovery.excludeFields, aiAnalysis.exclude_fields);
+                discovery.confidence = aiAnalysis.confidence;
+                discovery.usedAI = true;
+                discovery.aiAnalysis = aiAnalysis;
+
+                % Apply AI value mappings if available
+                if isfield(aiAnalysis, 'value_mappings')
+                    mappingFields = fieldnames(aiAnalysis.value_mappings);
+                    for i = 1:length(mappingFields)
+                        fieldName = mappingFields{i};
+                        discovery.valueMappings.(fieldName) = aiAnalysis.value_mappings.(fieldName);
+                    end
+                end
+            elseif aiAnalysis.confidence >= heuristicConfidence
                 fprintf('✓ Using AI recommendations (higher confidence)\n');
                 discovery.groupingFields = aiAnalysis.grouping_fields;
                 discovery.excludeFields = union(discovery.excludeFields, aiAnalysis.exclude_fields);
