@@ -717,7 +717,23 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 end
 
                 % Average ERP across selected ROI channels only
-                erp = mean(epochedData(i).avgERP(roiChannels, :), 1);
+                erpData = epochedData(i).avgERP(roiChannels, :);
+
+                % Debug: Check for flat/zero channels
+                if strcmp(roiSelection, 'all')
+                    channelStds = std(erpData, 0, 2);
+                    flatChannels = find(channelStds < 0.01);
+                    if ~isempty(flatChannels)
+                        fprintf('[ERP Debug] WARNING: Found %d flat channels (std < 0.01) in condition "%s"\n', ...
+                            length(flatChannels), epochedData(i).eventType);
+                        fprintf('[ERP Debug] Flat channel indices: %s\n', mat2str(roiChannels(flatChannels)));
+                        fprintf('[ERP Debug] Removing flat channels from average...\n');
+                        % Remove flat channels from averaging
+                        erpData(flatChannels, :) = [];
+                    end
+                end
+
+                erp = mean(erpData, 1);
                 timeVec = epochedData(i).timeVector * 1000;
 
                 plot(ax, timeVec, erp, 'LineWidth', 2.5, 'Color', colors(i,:), ...
@@ -1039,22 +1055,31 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             end
             nMaps = length(selectedIndices);
 
+            % Get actual panel size for proper layout
+            panelPos = app.TopoPanel.Position;  % [x y width height]
+            panelWidth = panelPos(3);
+            panelHeight = panelPos(4);
+
             % Calculate grid layout (max 4 columns)
             nCols = min(4, nMaps);
             nRows = ceil(nMaps / nCols);
 
-            mapWidth = floor(770 / nCols) - 10;
-            mapHeight = floor(360 / nRows) - 10;
+            % Use 95% of available space, with gaps between plots
+            usableWidth = panelWidth * 0.95;
+            usableHeight = panelHeight * 0.95;
+
+            mapWidth = floor(usableWidth / nCols) - 10;
+            mapHeight = floor(usableHeight / nRows) - 10;
 
             % Plot each selected event
             for i = 1:nMaps
                 eventIdx = selectedIndices(i);
 
-                % Calculate position in grid
+                % Calculate position in grid (bottom-up layout)
                 row = floor((i-1) / nCols);
                 col = mod(i-1, nCols);
-                xPos = 5 + col * (mapWidth + 10);
-                yPos = 360 - (row + 1) * (mapHeight + 10);
+                xPos = 10 + col * (mapWidth + 10);
+                yPos = panelHeight - (row + 1) * (mapHeight + 10);
 
                 % Create axes for this topomap
                 ax = uiaxes(app.TopoPanel);
@@ -1085,7 +1110,9 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                         'maplimits', 'absmax', ...
                         'emarker', {'.','k',4,1}, ...
                         'gridscale', 150, ...        % Fine interpolation grid
-                        'intrad', 1.0, ...           % Interpolate to full head (was 0.5, too restrictive)
+                        'intrad', 0.7, ...           % Interpolate to 70% beyond outermost electrodes
+                        'headrad', 0.5, ...          % Head circle at 50% of electrode array
+                        'conv', 'off', ...           % Disable extrapolation beyond head
                         'whitebk', 'on');            % White background
 
                     % Capture the plot as an image
@@ -1102,11 +1129,20 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                         'FontSize', 9, 'FontWeight', 'bold', 'Interpreter', 'none');
                 catch ME
                     % Fallback if topoplot fails
-                    cla(ax);
-                    text(ax, 0.5, 0.5, sprintf('Error: %s', ME.message), ...
-                        'HorizontalAlignment', 'center', ...
-                        'FontSize', 8, 'Color', 'r');
-                    axis(ax, 'off');
+                    try
+                        % Try to clear and show error message in the axes
+                        if isvalid(ax)
+                            cla(ax);
+                            text(ax, 0.5, 0.5, sprintf('Error: %s', ME.message), ...
+                                'HorizontalAlignment', 'center', ...
+                                'FontSize', 8, 'Color', 'r');
+                            axis(ax, 'off');
+                        end
+                    catch
+                        % If axes is invalid, just log the error
+                        fprintf('[TOPO] Error plotting topomap for event %d: %s\n', ...
+                            eventIdx, ME.message);
+                    end
                 end
             end
         end
