@@ -1116,16 +1116,17 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                     tempFig = figure('Visible', 'off', 'Position', [0 0 400 400]);
                     tempAx = axes(tempFig);
 
-                    % Plot topomap with enlarged head to encompass color interpolation
+                    % Plot topomap with enlarged head circle
                     % Note: HydroCel GSN 128 uses 2D planar layout (all z=0)
+                    % Strategy: Large head, interpolate beyond it to ensure colors fill completely
                     topoplot(topoData, app.Results.EEG.chanlocs, ...
                         'electrodes', 'on', ...
                         'style', 'map', ...
                         'maplimits', 'absmax', ...
                         'emarker', {'.','k',4,1}, ...
                         'gridscale', 150, ...        % Fine interpolation grid
-                        'headrad', 0.9, ...          % Larger head circle to encompass interpolation
-                        'intrad', 0.9, ...           % Interpolate to match head boundary
+                        'headrad', 0.9, ...          % Large head circle
+                        'intrad', 1.0, ...           % Interpolate beyond head to fill edges
                         'whitebk', 'on');            % White background
 
                     % Capture the plot as an image
