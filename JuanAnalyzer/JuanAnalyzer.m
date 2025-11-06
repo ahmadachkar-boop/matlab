@@ -851,8 +851,11 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % ERP Components
             summary{end+1} = 'ERP COMPONENTS (All Channels):';
             summary{end+1} = '----------------------------------------';
-            summary{end+1} = 'Note: Use the ROI dropdown in the ERP tab to view specific regions.';
-            summary{end+1} = 'Recommended: Central region for N400/P600, Occipital for N250.';
+            summary{end+1} = 'Note: Use the ROI dropdown in the ERP tab to select regions.';
+            summary{end+1} = 'Recommended ROIs by component:';
+            summary{end+1} = '  • N250: Occipital (O1, Oz, O2) - visual processing';
+            summary{end+1} = '  • N400: Central or Parietal (Cz, CPz, Pz) - semantic processing';
+            summary{end+1} = '  • P600: Parietal (Pz, CPz) - syntactic processing';
             summary{end+1} = '';
 
             for i = 1:length(results.erpAnalysis)
@@ -877,17 +880,31 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             summary{end+1} = 'REGION-SPECIFIC ANALYSIS:';
             summary{end+1} = '----------------------------------------';
 
-            % Central region analysis (best for N400/P600)
+            % Central region analysis (best for N400)
             centralChans = getROIChannels(results.EEG, 'central');
             if ~isempty(centralChans)
                 centralAnalysis = analyzeERPComponentsGUI(results.epochedData, [-0.2, 0.8], centralChans);
-                summary{end+1} = sprintf('Central Region (%d channels) - Recommended for N400/P600:', length(centralChans));
+                summary{end+1} = sprintf('Central Region (%d channels) - Best for N400:', length(centralChans));
                 for i = 1:length(centralAnalysis)
                     if centralAnalysis(i).numEpochs > 0
-                        summary{end+1} = sprintf('  %s: N400=%.2f μV @ %.0f ms, P600=%.2f μV @ %.0f ms', ...
+                        summary{end+1} = sprintf('  %s: N400=%.2f μV @ %.0f ms', ...
                             centralAnalysis(i).condition, ...
-                            centralAnalysis(i).n400.amplitude, centralAnalysis(i).n400.latency * 1000, ...
-                            centralAnalysis(i).p600.amplitude, centralAnalysis(i).p600.latency * 1000);
+                            centralAnalysis(i).n400.amplitude, centralAnalysis(i).n400.latency * 1000);
+                    end
+                end
+                summary{end+1} = '';
+            end
+
+            % Parietal region analysis (best for P600)
+            parietalChans = getROIChannels(results.EEG, 'parietal');
+            if ~isempty(parietalChans)
+                parietalAnalysis = analyzeERPComponentsGUI(results.epochedData, [-0.2, 0.8], parietalChans);
+                summary{end+1} = sprintf('Parietal Region (%d channels) - Best for P600:', length(parietalChans));
+                for i = 1:length(parietalAnalysis)
+                    if parietalAnalysis(i).numEpochs > 0
+                        summary{end+1} = sprintf('  %s: P600=%.2f μV @ %.0f ms', ...
+                            parietalAnalysis(i).condition, ...
+                            parietalAnalysis(i).p600.amplitude, parietalAnalysis(i).p600.latency * 1000);
                     end
                 end
                 summary{end+1} = '';
@@ -1159,51 +1176,65 @@ function channels = getChannelsByLabel(chanlocs, roiSelection)
 end
 
 function channels = getChannelsBySpatialLocation(chanlocs, roiSelection)
-    % Identify channels by their spatial coordinates (theta/radius)
-    % This works for EGI and other systems where labels don't follow 10-20
+    % Identify channels by their X/Y spatial coordinates
+    % Based on EGI HydroCel GSN 128 coordinate system:
+    %   Y-axis: Front/Nose = +299, Back/Occipital = -282
+    %   X-axis: Left = negative, Right = positive
+    %   Origin: Near vertex (Cz area)
+
     channels = [];
 
     for ch = 1:length(chanlocs)
-        if ~isfield(chanlocs(ch), 'theta') || ~isfield(chanlocs(ch), 'radius')
+        % Try to get X and Y coordinates
+        if isfield(chanlocs(ch), 'X') && isfield(chanlocs(ch), 'Y')
+            x = chanlocs(ch).X;
+            y = chanlocs(ch).Y;
+        elseif isfield(chanlocs(ch), 'x') && isfield(chanlocs(ch), 'y')
+            x = chanlocs(ch).x;
+            y = chanlocs(ch).y;
+        else
+            % No coordinates available
             continue;
         end
 
-        theta = chanlocs(ch).theta;  % Angle: nose=+90, left=0, right=180, back=-90
-        radius = chanlocs(ch).radius;  % Distance from vertex: 0=top, 0.5=edge
-
-        % Normalize theta to -180 to 180
-        if theta > 180
-            theta = theta - 360;
+        % Skip if coordinates are missing or invalid
+        if isempty(x) || isempty(y) || isnan(x) || isnan(y)
+            continue;
         end
 
         inROI = false;
+        absX = abs(x);  % Distance from midline
 
         switch roiSelection
             case 'frontal'
-                % Front half of head, not too lateral
-                inROI = (theta >= 30 && theta <= 150) && (radius < 0.6);
+                % Front of head: Y > 100, not too far lateral
+                % Expected electrodes: 73-75, 81-84, 88-90, 94-95 (~15-20 channels)
+                % This includes Fp1, Fpz, Fp2, AFz, Fz regions
+                inROI = (y > 100) && (absX < 120);
 
             case 'central'
-                % Middle strip, including central midline
-                % Latitude: -45 to +45 (front-center to back-center)
-                % Longitude: around midline
-                inROI = ((theta >= -45 && theta <= 45) || (theta >= 135 || theta <= -135)) && ...
-                        (radius >= 0.2 && radius < 0.5);
+                % Central strip: Y from -100 to +100, close to midline
+                % Expected electrodes: 6, 11, 55, 62, 72, 31, 7, 13, 54, 61 (~15-25 channels)
+                % This includes FCz, Cz, CPz region - BEST FOR N400/P600
+                inROI = (y >= -100 && y <= 100) && (absX < 50);
 
             case 'parietal'
-                % Back-center of head
-                inROI = ((theta >= -135 && theta <= -45) || (theta >= 135 && theta <= 180)) && ...
-                        (radius >= 0.2 && radius < 0.6);
+                % Back-center: Y from -180 to 0, close to midline
+                % Expected electrodes: 54, 61, 67, 76-77, 31, 7 (~20-30 channels)
+                % This includes Pz, POz region - GOOD FOR P600
+                inROI = (y >= -180 && y <= 0) && (absX < 80);
 
             case 'occipital'
-                % Very back of head
-                inROI = ((theta >= -135 && theta <= -45) || (theta >= 135)) && ...
-                        (radius >= 0.4);
+                % Very back of head: Y < -180
+                % Expected electrodes: 17, 126, 127, 14-15, 21-22, 25 (~15-20 channels)
+                % This includes O1, Oz, O2, POz region - BEST FOR N170/N250
+                inROI = (y < -180);
 
             case 'temporal'
-                % Sides of head
-                inROI = ((theta >= -30 && theta <= 30) || (theta >= 150 || theta <= -150)) && ...
-                        (radius >= 0.4);
+                % Sides of head: |X| > 145, mid-range Y
+                % Expected electrodes: 43, 48, 56, 49, 38, 107, 113, 119, 120 (~20-30 channels)
+                % This includes T7, T8, TP7, TP8, FT7, FT8 regions
+                inROI = (absX > 145) && (y >= -120 && y <= 120);
         end
 
         if inROI
