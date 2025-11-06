@@ -1110,11 +1110,23 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 fprintf('[TOPO Debug] Data range: %.2f to %.2f µV (mean=%.2f, std=%.2f)\n', ...
                     min(topoData), max(topoData), mean(topoData), std(topoData));
 
+                % Check for problematic data
+                if std(topoData) < 0.01
+                    fprintf('[TOPO Debug] ⚠️ WARNING: Very low variance (std=%.4f) - map may be flat!\n', std(topoData));
+                end
+                if all(abs(topoData) < 0.01)
+                    fprintf('[TOPO Debug] ⚠️ WARNING: All values near zero - data may be invalid!\n');
+                end
+
                 % Plot topomap using temporary figure (topoplot doesn't work with uiaxes)
                 try
                     % Create hidden figure with traditional axes
                     tempFig = figure('Visible', 'off', 'Position', [0 0 400 400]);
                     tempAx = axes(tempFig);
+
+                    % Calculate color limits
+                    maxAbsVal = max(abs(topoData));
+                    fprintf('[TOPO Debug] Color limits: [%.2f, %.2f]\n', -maxAbsVal, maxAbsVal);
 
                     % Plot topomap with head circle matching interpolation radius
                     % Note: HydroCel GSN 128 uses 2D planar layout (all z=0)
