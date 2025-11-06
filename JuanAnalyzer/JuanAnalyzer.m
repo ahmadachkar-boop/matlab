@@ -1132,8 +1132,16 @@ function channels = getROIChannels(EEG, roiSelection)
         % Debug output (first call only)
         persistent allDebugShown
         if isempty(allDebugShown)
-            fprintf('[ROI] All channels: %d channels selected (%d excluded as reference)\n', ...
-                length(channels), EEG.nbchan - length(channels));
+            fprintf('\n[ROI Selection] All Channels (excluding reference)\n');
+            fprintf('  Selected: %d channels\n', length(channels));
+            fprintf('  Excluded: %d reference electrode(s)\n', EEG.nbchan - length(channels));
+            if length(channels) <= 20
+                fprintf('  Channel numbers: %s\n', mat2str(channels));
+            else
+                fprintf('  Channel numbers: %d, %d, %d ... %d, %d, %d\n', ...
+                    channels(1), channels(2), channels(3), ...
+                    channels(end-2), channels(end-1), channels(end));
+            end
             allDebugShown = true;
         end
         return;
@@ -1387,8 +1395,31 @@ function channels = getChannelsByThetaRadius(chanlocs, roiSelection)
         trDebugShown = struct();
     end
     if ~isfield(trDebugShown, roiSelection)
-        fprintf('[ROI] %s region: %d channels selected (theta/radius method)\n', ...
-            [upper(roiSelection(1)) roiSelection(2:end)], length(channels));
+        fprintf('\n[ROI Selection] %s Region (theta/radius method)\n', ...
+            [upper(roiSelection(1)) roiSelection(2:end)]);
+        fprintf('  Selected: %d channels\n', length(channels));
+
+        % Show channel numbers
+        if length(channels) <= 30
+            fprintf('  Channel numbers: %s\n', mat2str(channels));
+        else
+            fprintf('  Channel numbers: %d, %d, %d ... %d, %d, %d\n', ...
+                channels(1), channels(2), channels(3), ...
+                channels(end-2), channels(end-1), channels(end));
+        end
+
+        % Show channel labels if available
+        if isfield(chanlocs, 'labels') && ~isempty(chanlocs(1).labels)
+            labels = {chanlocs(channels).labels};
+            if length(labels) <= 15
+                fprintf('  Channel labels: %s\n', strjoin(labels, ', '));
+            else
+                fprintf('  Channel labels: %s, %s, %s ... %s, %s, %s\n', ...
+                    labels{1}, labels{2}, labels{3}, ...
+                    labels{end-2}, labels{end-1}, labels{end});
+            end
+        end
+
         trDebugShown.(roiSelection) = true;
     end
 end
