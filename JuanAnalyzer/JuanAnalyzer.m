@@ -1112,21 +1112,18 @@ function channels = getROIChannels(EEG, roiSelection)
         return;
     end
 
-    % Debug: Show what fields are available in first channel
+    % Debug: Show what fields are available (first call only)
     persistent debugShown
     if isempty(debugShown)
-        fprintf('\n[DEBUG] Channel location fields available:\n');
+        fprintf('\n[ROI Debug] Channel location fields: ');
         if ~isempty(EEG.chanlocs)
             fields = fieldnames(EEG.chanlocs(1));
-            for i = 1:length(fields)
-                fprintf('  - %s\n', fields{i});
-            end
+            fprintf('%s ', fields{:});
+            fprintf('\n');
             % Show sample values
             if isfield(EEG.chanlocs, 'X')
-                fprintf('  Example X: %.2f\n', EEG.chanlocs(1).X);
-            end
-            if isfield(EEG.chanlocs, 'Y')
-                fprintf('  Example Y: %.2f\n', EEG.chanlocs(1).Y);
+                fprintf('[ROI Debug] Example coordinates: X=%.2f, Y=%.2f\n', ...
+                    EEG.chanlocs(1).X, EEG.chanlocs(1).Y);
             end
         end
         debugShown = true;
@@ -1204,15 +1201,25 @@ end
 
 function channels = getChannelsBySpatialLocation(chanlocs, roiSelection)
     % Identify channels by their X/Y spatial coordinates
-    % Based on EGI HydroCel GSN 128 coordinate system:
-    %   Y-axis: Front/Nose = +299, Back/Occipital = -282
-    %   X-axis: Left = negative, Right = positive
-    %   Origin: Near vertex (Cz area)
+    % EEGLAB normalizes coordinates - scale factors vary by import method
+    % These criteria work for normalized EGI coordinates (scaled ~30-50x from original)
 
     channels = [];
     coordsFound = 0;
 
     for ch = 1:length(chanlocs)
+        % Skip reference electrodes
+        if isfield(chanlocs, 'type') && ~isempty(chanlocs(ch).type)
+            if chanlocs(ch).type == 1  % Type 1 = reference in EGI
+                continue;
+            end
+        end
+        if isfield(chanlocs, 'ref') && ~isempty(chanlocs(ch).ref)
+            if ~isempty(strfind(lower(chanlocs(ch).ref), 'ref'))
+                continue;
+            end
+        end
+
         % Try to get X and Y coordinates - check multiple field name variations
         x = [];
         y = [];
@@ -1243,34 +1250,29 @@ function channels = getChannelsBySpatialLocation(chanlocs, roiSelection)
 
         switch roiSelection
             case 'frontal'
-                % Front of head: Y > 100, not too far lateral
-                % Expected electrodes: 73-75, 81-84, 88-90, 94-95 (~15-20 channels)
-                % This includes Fp1, Fpz, Fp2, AFz, Fz regions
-                inROI = (y > 100) && (absX < 120);
+                % Front of head: Y > 3 (normalized), not too far lateral
+                % Expected electrodes: 73-75, 81-84, 88-90, 94-95
+                inROI = (y > 3) && (absX < 4);
 
             case 'central'
-                % Central strip: Y from -100 to +100, close to midline
-                % Expected electrodes: 6, 11, 55, 62, 72, 31, 7, 13, 54, 61 (~15-25 channels)
-                % This includes FCz, Cz, CPz region - BEST FOR N400/P600
-                inROI = (y >= -100 && y <= 100) && (absX < 50);
+                % Central strip: Y from -3 to +3, close to midline
+                % Expected electrodes: 6, 11, 55, 62, 72, 31, 7, 13, 54, 61
+                inROI = (y >= -3 && y <= 3) && (absX < 1.5);
 
             case 'parietal'
-                % Back-center: Y from -180 to 0, close to midline
-                % Expected electrodes: 54, 61, 67, 76-77, 31, 7 (~20-30 channels)
-                % This includes Pz, POz region - GOOD FOR P600
-                inROI = (y >= -180 && y <= 0) && (absX < 80);
+                % Back-center: Y from -6 to 0, close to midline
+                % Expected electrodes: 54, 61, 67, 76-77, 31, 7
+                inROI = (y >= -6 && y <= 0) && (absX < 2.5);
 
             case 'occipital'
-                % Very back of head: Y < -180
-                % Expected electrodes: 17, 126, 127, 14-15, 21-22, 25 (~15-20 channels)
-                % This includes O1, Oz, O2, POz region - BEST FOR N170/N250
-                inROI = (y < -180);
+                % Very back of head: Y < -6 (normalized)
+                % Expected electrodes: 17, 126, 127, 14-15, 21-22, 25
+                inROI = (y < -6);
 
             case 'temporal'
-                % Sides of head: |X| > 145, mid-range Y
-                % Expected electrodes: 43, 48, 56, 49, 38, 107, 113, 119, 120 (~20-30 channels)
-                % This includes T7, T8, TP7, TP8, FT7, FT8 regions
-                inROI = (absX > 145) && (y >= -120 && y <= 120);
+                % Sides of head: |X| > 5, mid-range Y
+                % Expected electrodes: 43, 48, 56, 49, 38, 107, 113, 119, 120
+                inROI = (absX > 5) && (y >= -4 && y <= 4);
         end
 
         if inROI
@@ -1278,17 +1280,15 @@ function channels = getChannelsBySpatialLocation(chanlocs, roiSelection)
         end
     end
 
-    % Debug output and fallback
+    % Use results or fallback to theta/radius
     if coordsFound == 0
-        fprintf('[DEBUG] No X/Y coordinates found for ROI selection.\n');
-        fprintf('[DEBUG] Falling back to theta/radius method...\n');
+        % No X/Y coords available - use theta/radius
         channels = getChannelsByThetaRadius(chanlocs, roiSelection);
     elseif isempty(channels)
-        fprintf('[DEBUG] Spatial ROI "%s": Found coords for %d channels but none matched criteria\n', ...
-            roiSelection, coordsFound);
-        fprintf('[DEBUG] Falling back to theta/radius method...\n');
+        % Coords available but didn't match criteria - try theta/radius
         channels = getChannelsByThetaRadius(chanlocs, roiSelection);
     end
+    % Note: Success messages are printed by the respective functions
 end
 
 function channels = getChannelsByThetaRadius(chanlocs, roiSelection)
@@ -1299,6 +1299,18 @@ function channels = getChannelsByThetaRadius(chanlocs, roiSelection)
     channels = [];
 
     for ch = 1:length(chanlocs)
+        % Skip reference electrodes
+        if isfield(chanlocs, 'type') && ~isempty(chanlocs(ch).type)
+            if chanlocs(ch).type == 1  % Type 1 = reference in EGI
+                continue;
+            end
+        end
+        if isfield(chanlocs, 'ref') && ~isempty(chanlocs(ch).ref)
+            if ~isempty(strfind(lower(chanlocs(ch).ref), 'ref'))
+                continue;
+            end
+        end
+
         if ~isfield(chanlocs, 'theta') || ~isfield(chanlocs, 'radius')
             continue;
         end
@@ -1342,7 +1354,16 @@ function channels = getChannelsByThetaRadius(chanlocs, roiSelection)
         end
     end
 
-    fprintf('[DEBUG] Theta/Radius ROI "%s": Selected %d channels\n', roiSelection, length(channels));
+    % Debug output (first call only)
+    persistent trDebugShown
+    if isempty(trDebugShown)
+        trDebugShown = struct();
+    end
+    if ~isfield(trDebugShown, roiSelection)
+        fprintf('[ROI] %s region: %d channels selected (theta/radius method)\n', ...
+            [upper(roiSelection(1)) roiSelection(2:end)], length(channels));
+        trDebugShown.(roiSelection) = true;
+    end
 end
 
 function erpAnalysis = analyzeERPComponentsGUI(epochedData, timeWindow, roiChannels)
