@@ -176,12 +176,22 @@ function [selectedEventTypes, structure, discovery] = autoSelectTrialEventsUnive
     %% PHASE 4: Exclude practice trials
     if excludePractice && ~isempty(discovery.practicePatterns)
         fprintf('\nStep 2: Excluding practice trials...\n');
+        fprintf('  Practice patterns to exclude: %s\n', strjoin(discovery.practicePatterns, ', '));
 
         keepMask = true(length(originalEventTypes), 1);
+        excludedCount = 0;
+
         for i = 1:length(originalEventTypes)
             for p = 1:length(discovery.practicePatterns)
                 if contains(originalEventTypes{i}, discovery.practicePatterns{p}, 'IgnoreCase', true)
                     keepMask(i) = false;
+                    excludedCount = excludedCount + 1;
+
+                    % Log first 10 exclusions for visibility
+                    if excludedCount <= 10
+                        fprintf('    [PRACTICE] Excluding event "%s" (matches pattern: "%s")\n', ...
+                            conditionLabels{i}, discovery.practicePatterns{p});
+                    end
                     break;
                 end
             end
@@ -193,6 +203,9 @@ function [selectedEventTypes, structure, discovery] = autoSelectTrialEventsUnive
         eventIndices = eventIndices(keepMask);
         afterCount = length(conditionLabels);
 
+        if excludedCount > 10
+            fprintf('    ... and %d more practice trials\n', excludedCount - 10);
+        end
         fprintf('  ✓ Excluded %d practice trials (%d remaining)\n', ...
             beforeCount - afterCount, afterCount);
     else
@@ -204,9 +217,94 @@ function [selectedEventTypes, structure, discovery] = autoSelectTrialEventsUnive
     uniqueConditions = unique(conditionLabels);
     fprintf('  ✓ Found %d unique condition groups\n', length(uniqueConditions));
 
-    %% PHASE 6: Filter by specified conditions (if any)
-    if ~isempty(conditions)
-        fprintf('\nStep 4: Filtering by specified conditions...\n');
+    %% PHASE 6: Apply AI condition recommendations (if available)
+    if isfield(discovery, 'aiAnalysis') && isfield(discovery.aiAnalysis, 'condition_recommendations')
+        fprintf('\nStep 4: Applying AI condition recommendations...\n');
+        recommendations = discovery.aiAnalysis.condition_recommendations;
+
+        % Get include/exclude lists
+        includeConditions = {};
+        excludeConditions = {};
+
+        if isfield(recommendations, 'include') && ~isempty(recommendations.include)
+            includeConditions = recommendations.include;
+            if ~iscell(includeConditions)
+                includeConditions = {includeConditions};
+            end
+            fprintf('  AI recommends INCLUDING: %s\n', strjoin(includeConditions, ', '));
+        end
+
+        if isfield(recommendations, 'exclude') && ~isempty(recommendations.exclude)
+            excludeConditions = recommendations.exclude;
+            if ~iscell(excludeConditions)
+                excludeConditions = {excludeConditions};
+            end
+            fprintf('  AI recommends EXCLUDING: %s\n', strjoin(excludeConditions, ', '));
+        end
+
+        % Apply filtering
+        if ~isempty(includeConditions) || ~isempty(excludeConditions)
+            keepMask = true(length(conditionLabels), 1);
+            excludedByAI = 0;
+            keptByAI = 0;
+
+            for i = 1:length(conditionLabels)
+                condLabel = conditionLabels{i};
+                shouldKeep = true;
+
+                % Check exclude list first (takes priority)
+                if ~isempty(excludeConditions)
+                    for e = 1:length(excludeConditions)
+                        if contains(condLabel, excludeConditions{e}, 'IgnoreCase', true)
+                            shouldKeep = false;
+                            excludedByAI = excludedByAI + 1;
+                            fprintf('    [EXCLUDE] Event "%s" matches AI exclusion: "%s"\n', ...
+                                condLabel, excludeConditions{e});
+                            break;
+                        end
+                    end
+                end
+
+                % If not excluded and include list exists, must match include list
+                if shouldKeep && ~isempty(includeConditions)
+                    matchesInclude = false;
+                    for inc = 1:length(includeConditions)
+                        if contains(condLabel, includeConditions{inc}, 'IgnoreCase', true)
+                            matchesInclude = true;
+                            keptByAI = keptByAI + 1;
+                            fprintf('    [INCLUDE] Event "%s" matches AI inclusion: "%s"\n', ...
+                                condLabel, includeConditions{inc});
+                            break;
+                        end
+                    end
+                    shouldKeep = matchesInclude;
+
+                    if ~matchesInclude
+                        fprintf('    [EXCLUDE] Event "%s" does not match any AI inclusion criteria\n', ...
+                            condLabel);
+                    end
+                end
+
+                keepMask(i) = shouldKeep;
+            end
+
+            beforeCount = length(conditionLabels);
+            conditionLabels = conditionLabels(keepMask);
+            originalEventTypes = originalEventTypes(keepMask);
+            eventIndices = eventIndices(keepMask);
+            afterCount = length(conditionLabels);
+
+            uniqueConditions = unique(conditionLabels);
+
+            fprintf('  ✓ AI filtering: excluded %d, kept %d events (%d total remaining)\n', ...
+                excludedByAI, keptByAI, afterCount);
+        else
+            fprintf('  ℹ No AI include/exclude criteria specified\n');
+        end
+
+    %% PHASE 6b: Filter by user-specified conditions (if no AI filtering was applied)
+    elseif ~isempty(conditions)
+        fprintf('\nStep 4: Filtering by user-specified conditions...\n');
         fprintf('  Target conditions: %s\n', strjoin(conditions, ', '));
 
         keepMask = false(length(conditionLabels), 1);
@@ -250,6 +348,29 @@ function [selectedEventTypes, structure, discovery] = autoSelectTrialEventsUnive
     fprintf('Total events in file:     %d\n', length(EEG.event));
     fprintf('Matching events:          %d\n', length(conditionLabels));
     fprintf('Unique condition groups:  %d\n', length(uniqueConditions));
+
+    % Show filtering pipeline
+    if excludePractice && ~isempty(discovery.practicePatterns)
+        fprintf('\nFiltering Pipeline:\n');
+        fprintf('  ✓ Practice trials excluded: %d patterns used\n', length(discovery.practicePatterns));
+    end
+
+    if isfield(discovery, 'aiAnalysis') && isfield(discovery.aiAnalysis, 'condition_recommendations')
+        fprintf('  ✓ AI condition filtering applied\n');
+        if isfield(discovery.aiAnalysis.condition_recommendations, 'include') && ...
+           ~isempty(discovery.aiAnalysis.condition_recommendations.include)
+            fprintf('    Include list: %d criteria\n', length(discovery.aiAnalysis.condition_recommendations.include));
+        end
+        if isfield(discovery.aiAnalysis.condition_recommendations, 'exclude') && ...
+           ~isempty(discovery.aiAnalysis.condition_recommendations.exclude)
+            fprintf('    Exclude list: %d criteria\n', length(discovery.aiAnalysis.condition_recommendations.exclude));
+        end
+    end
+
+    if isfield(discovery, 'usedAI') && discovery.usedAI
+        fprintf('  ✓ AI-powered event analysis enabled\n');
+    end
+
     fprintf('========================================\n\n');
 
     % Display detailed table

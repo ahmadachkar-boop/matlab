@@ -278,15 +278,57 @@ function discovery = discoverEventFields(EEG, structure, varargin)
 
             % Show practice trial patterns
             if isfield(aiAnalysis, 'practice_trial_patterns') && ~isempty(aiAnalysis.practice_trial_patterns)
-                fprintf('\nPractice Trials Detected:\n');
-                for i = 1:length(aiAnalysis.practice_trial_patterns)
-                    ptp = aiAnalysis.practice_trial_patterns(i);
-                    fprintf('  Pattern "%s" in field "%s": %s\n', ...
-                        ptp.pattern, ptp.field, ptp.reasoning);
-                    % Add to practice patterns
-                    discovery.practicePatterns{end+1} = ptp.pattern;
+                fprintf('\nPractice Trials Detected by AI:\n');
+
+                patterns = aiAnalysis.practice_trial_patterns;
+                numAdded = 0;
+
+                for i = 1:length(patterns)
+                    try
+                        ptp = patterns(i);
+
+                        % Validate and extract pattern string
+                        if ~isfield(ptp, 'pattern')
+                            continue;
+                        end
+
+                        patternStr = char(ptp.pattern);
+                        patternStr = strtrim(patternStr);
+
+                        % Skip invalid patterns
+                        if isempty(patternStr) || strcmp(patternStr, '""') || strcmp(patternStr, '''''')
+                            continue;
+                        end
+
+                        % Extract field and reasoning
+                        fieldStr = '';
+                        if isfield(ptp, 'field')
+                            fieldStr = char(ptp.field);
+                        end
+
+                        reasoningStr = '';
+                        if isfield(ptp, 'reasoning')
+                            reasoningStr = char(ptp.reasoning);
+                            if length(reasoningStr) > 80
+                                reasoningStr = [reasoningStr(1:77) '...'];
+                            end
+                        end
+
+                        fprintf('  Pattern "%s" in field "%s": %s\n', ...
+                            patternStr, fieldStr, reasoningStr);
+
+                        % Add valid pattern
+                        discovery.practicePatterns{end+1} = patternStr;
+                        numAdded = numAdded + 1;
+
+                    catch ME
+                        warning('Error processing practice pattern %d: %s', i, ME.message);
+                        continue;
+                    end
                 end
+
                 discovery.practicePatterns = unique(discovery.practicePatterns);
+                fprintf('  → %d practice patterns added to exclusion list\n', numAdded);
             end
 
             % Show condition recommendations
