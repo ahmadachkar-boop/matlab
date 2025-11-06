@@ -1118,15 +1118,16 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
                     % Plot topomap with enlarged head circle
                     % Note: HydroCel GSN 128 uses 2D planar layout (all z=0)
-                    % Strategy: Large head, interpolate beyond it to ensure colors fill completely
+                    % Strategy: Extend interpolation well beyond head to eliminate gaps
                     topoplot(topoData, app.Results.EEG.chanlocs, ...
                         'electrodes', 'on', ...
                         'style', 'map', ...
                         'maplimits', 'absmax', ...
                         'emarker', {'.','k',4,1}, ...
                         'gridscale', 150, ...        % Fine interpolation grid
+                        'plotrad', 0.9, ...          % Plot radius (controls overall extent)
                         'headrad', 0.9, ...          % Large head circle
-                        'intrad', 1.0, ...           % Interpolate beyond head to fill edges
+                        'intrad', 1.2, ...           % Interpolate well beyond head (120% vs 90%)
                         'whitebk', 'on');            % White background
 
                     % Capture the plot as an image
