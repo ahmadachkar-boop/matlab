@@ -1112,6 +1112,26 @@ function channels = getROIChannels(EEG, roiSelection)
         return;
     end
 
+    % Debug: Show what fields are available in first channel
+    persistent debugShown
+    if isempty(debugShown)
+        fprintf('\n[DEBUG] Channel location fields available:\n');
+        if ~isempty(EEG.chanlocs)
+            fields = fieldnames(EEG.chanlocs(1));
+            for i = 1:length(fields)
+                fprintf('  - %s\n', fields{i});
+            end
+            % Show sample values
+            if isfield(EEG.chanlocs, 'X')
+                fprintf('  Example X: %.2f\n', EEG.chanlocs(1).X);
+            end
+            if isfield(EEG.chanlocs, 'Y')
+                fprintf('  Example Y: %.2f\n', EEG.chanlocs(1).Y);
+            end
+        end
+        debugShown = true;
+    end
+
     % Try to identify channels by label first (more accurate)
     channels = getChannelsByLabel(EEG.chanlocs, roiSelection);
 
@@ -1190,24 +1210,33 @@ function channels = getChannelsBySpatialLocation(chanlocs, roiSelection)
     %   Origin: Near vertex (Cz area)
 
     channels = [];
+    coordsFound = 0;
 
     for ch = 1:length(chanlocs)
-        % Try to get X and Y coordinates
-        if isfield(chanlocs(ch), 'X') && isfield(chanlocs(ch), 'Y')
+        % Try to get X and Y coordinates - check multiple field name variations
+        x = [];
+        y = [];
+
+        % Try uppercase
+        if isfield(chanlocs, 'X') && ~isempty(chanlocs(ch).X)
             x = chanlocs(ch).X;
             y = chanlocs(ch).Y;
-        elseif isfield(chanlocs(ch), 'x') && isfield(chanlocs(ch), 'y')
+        % Try lowercase
+        elseif isfield(chanlocs, 'x') && ~isempty(chanlocs(ch).x)
             x = chanlocs(ch).x;
             y = chanlocs(ch).y;
-        else
-            % No coordinates available
-            continue;
+        % Try sph_* (spherical converted)
+        elseif isfield(chanlocs, 'sph_X') && ~isempty(chanlocs(ch).sph_X)
+            x = chanlocs(ch).sph_X;
+            y = chanlocs(ch).sph_Y;
         end
 
         % Skip if coordinates are missing or invalid
         if isempty(x) || isempty(y) || isnan(x) || isnan(y)
             continue;
         end
+
+        coordsFound = coordsFound + 1;
 
         inROI = false;
         absX = abs(x);  % Distance from midline
@@ -1248,6 +1277,72 @@ function channels = getChannelsBySpatialLocation(chanlocs, roiSelection)
             channels(end+1) = ch;
         end
     end
+
+    % Debug output and fallback
+    if coordsFound == 0
+        fprintf('[DEBUG] No X/Y coordinates found for ROI selection.\n');
+        fprintf('[DEBUG] Falling back to theta/radius method...\n');
+        channels = getChannelsByThetaRadius(chanlocs, roiSelection);
+    elseif isempty(channels)
+        fprintf('[DEBUG] Spatial ROI "%s": Found coords for %d channels but none matched criteria\n', ...
+            roiSelection, coordsFound);
+        fprintf('[DEBUG] Falling back to theta/radius method...\n');
+        channels = getChannelsByThetaRadius(chanlocs, roiSelection);
+    end
+end
+
+function channels = getChannelsByThetaRadius(chanlocs, roiSelection)
+    % Fallback method using theta/radius (EEGLAB's spherical coordinates)
+    % theta: angle in degrees (nose=+90, right ear=0, left ear=±180, back=-90)
+    % radius: 0=vertex, 0.5=typical scalp edge
+
+    channels = [];
+
+    for ch = 1:length(chanlocs)
+        if ~isfield(chanlocs, 'theta') || ~isfield(chanlocs, 'radius')
+            continue;
+        end
+
+        theta = chanlocs(ch).theta;
+        radius = chanlocs(ch).radius;
+
+        if isempty(theta) || isempty(radius) || isnan(theta) || isnan(radius)
+            continue;
+        end
+
+        inROI = false;
+
+        switch roiSelection
+            case 'frontal'
+                % Front of head: theta around +90, moderate radius
+                inROI = (theta >= 45 && theta <= 135) && (radius <= 0.6);
+
+            case 'central'
+                % Central strip: close to vertex, any theta
+                inROI = (radius >= 0.15 && radius <= 0.45);
+
+            case 'parietal'
+                % Back-center: theta around -90 or ±180, moderate radius
+                inROI = ((theta >= 135 || theta <= -135) || (theta >= -135 && theta <= -45)) && ...
+                        (radius >= 0.2 && radius <= 0.6);
+
+            case 'occipital'
+                % Very back: theta around ±180 or -90, high radius
+                inROI = ((abs(theta) >= 135) || (theta >= -120 && theta <= -60)) && ...
+                        (radius >= 0.45);
+
+            case 'temporal'
+                % Sides: theta near 0 or ±180, high radius
+                inROI = ((abs(theta) <= 45) || (abs(theta) >= 135)) && ...
+                        (radius >= 0.5);
+        end
+
+        if inROI
+            channels(end+1) = ch;
+        end
+    end
+
+    fprintf('[DEBUG] Theta/Radius ROI "%s": Selected %d channels\n', roiSelection, length(channels));
 end
 
 function erpAnalysis = analyzeERPComponentsGUI(epochedData, timeWindow, roiChannels)
