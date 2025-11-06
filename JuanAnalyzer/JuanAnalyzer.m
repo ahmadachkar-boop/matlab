@@ -720,20 +720,34 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 erpData = epochedData(i).avgERP(roiChannels, :);
 
                 % Debug: Check for flat/zero channels
+                fprintf('[ERP Debug] Condition "%s": ROI=%s, %d channels selected\n', ...
+                    epochedData(i).eventType, roiSelection, length(roiChannels));
+
                 if strcmp(roiSelection, 'all')
                     channelStds = std(erpData, 0, 2);
+                    channelMeans = mean(erpData, 2);
+
+                    fprintf('[ERP Debug] Channel std range: %.4f to %.4f\n', ...
+                        min(channelStds), max(channelStds));
+                    fprintf('[ERP Debug] Channel mean range: %.4f to %.4f\n', ...
+                        min(channelMeans), max(channelMeans));
+
                     flatChannels = find(channelStds < 0.01);
                     if ~isempty(flatChannels)
-                        fprintf('[ERP Debug] WARNING: Found %d flat channels (std < 0.01) in condition "%s"\n', ...
-                            length(flatChannels), epochedData(i).eventType);
-                        fprintf('[ERP Debug] Flat channel indices: %s\n', mat2str(roiChannels(flatChannels)));
-                        fprintf('[ERP Debug] Removing flat channels from average...\n');
+                        fprintf('[ERP Debug] WARNING: Found %d flat channels (std < 0.01)\n', ...
+                            length(flatChannels));
+                        fprintf('[ERP Debug] Flat channel global indices: %s\n', mat2str(roiChannels(flatChannels)));
+                        fprintf('[ERP Debug] Flat channel stds: %s\n', mat2str(channelStds(flatChannels)'));
                         % Remove flat channels from averaging
                         erpData(flatChannels, :) = [];
+                        fprintf('[ERP Debug] Removed flat channels, now have %d channels\n', size(erpData, 1));
                     end
                 end
 
                 erp = mean(erpData, 1);
+                fprintf('[ERP Debug] Final ERP: mean=%.4f, std=%.4f, range=[%.2f, %.2f]\n', ...
+                    mean(erp), std(erp), min(erp), max(erp));
+
                 timeVec = epochedData(i).timeVector * 1000;
 
                 plot(ax, timeVec, erp, 'LineWidth', 2.5, 'Color', colors(i,:), ...
@@ -1102,7 +1116,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                     tempFig = figure('Visible', 'off', 'Position', [0 0 400 400]);
                     tempAx = axes(tempFig);
 
-                    % Plot topomap with proper head shape and boundary constraints
+                    % Plot topomap with enlarged head to encompass color interpolation
                     % Note: HydroCel GSN 128 uses 2D planar layout (all z=0)
                     topoplot(topoData, app.Results.EEG.chanlocs, ...
                         'electrodes', 'on', ...
@@ -1110,9 +1124,8 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                         'maplimits', 'absmax', ...
                         'emarker', {'.','k',4,1}, ...
                         'gridscale', 150, ...        % Fine interpolation grid
-                        'intrad', 0.7, ...           % Interpolate to 70% beyond outermost electrodes
-                        'headrad', 0.5, ...          % Head circle at 50% of electrode array
-                        'conv', 'off', ...           % Disable extrapolation beyond head
+                        'headrad', 0.9, ...          % Larger head circle to encompass interpolation
+                        'intrad', 0.9, ...           % Interpolate to match head boundary
                         'whitebk', 'on');            % White background
 
                     % Capture the plot as an image
