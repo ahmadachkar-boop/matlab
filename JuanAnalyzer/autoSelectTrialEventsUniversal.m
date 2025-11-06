@@ -341,6 +341,20 @@ function [selectedEventTypes, structure, discovery] = autoSelectTrialEventsUnive
     % Return the unique condition labels
     selectedEventTypes = uniqueConditions;
 
+    % Create mapping from condition labels to original event types
+    % This preserves the original event names for display purposes
+    originalEventTypeMap = containers.Map();
+    for i = 1:length(uniqueConditions)
+        % Find first occurrence of this condition label
+        idx = find(strcmp(conditionLabels, uniqueConditions{i}), 1, 'first');
+        if ~isempty(idx)
+            originalEventTypeMap(uniqueConditions{i}) = originalEventTypes{idx};
+        end
+    end
+
+    % Store mapping in discovery structure for later use
+    discovery.originalEventTypeMap = originalEventTypeMap;
+
     %% Display summary
     fprintf('\n========================================\n');
     fprintf('SELECTION SUMMARY\n');

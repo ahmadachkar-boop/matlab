@@ -140,6 +140,14 @@ function epochedData = epochEEGByEventsUniversal(EEG, selectedConditions, timeWi
 
         % Store epoch data
         epochedData(typeIdx).eventType = conditionLabel;
+
+        % Store original event type (before AI modification) if available
+        if isfield(discovery, 'originalEventTypeMap') && discovery.originalEventTypeMap.isKey(conditionLabel)
+            epochedData(typeIdx).originalEventType = discovery.originalEventTypeMap(conditionLabel);
+        else
+            epochedData(typeIdx).originalEventType = conditionLabel;  % Fallback to condition label
+        end
+
         epochedData(typeIdx).epochs = epochs;
         epochedData(typeIdx).numEpochs = validEpochCount;
         epochedData(typeIdx).timeVector = timeVector;

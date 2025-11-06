@@ -647,7 +647,12 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             epochedData = app.Results.epochedData;
             eventNames = cell(length(epochedData), 1);
             for i = 1:length(epochedData)
-                eventNames{i} = strrep(epochedData(i).eventType, '_', ' ');
+                % Use original event type if available, otherwise fall back to eventType
+                if isfield(epochedData(i), 'originalEventType')
+                    eventNames{i} = strrep(epochedData(i).originalEventType, '_', ' ');
+                else
+                    eventNames{i} = strrep(epochedData(i).eventType, '_', ' ');
+                end
             end
 
             % ERP listbox
@@ -758,8 +763,15 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
                 timeVec = epochedData(i).timeVector * 1000;
 
+                % Use original event type for legend if available
+                if isfield(epochedData(i), 'originalEventType')
+                    displayName = strrep(epochedData(i).originalEventType, '_', ' ');
+                else
+                    displayName = strrep(epochedData(i).eventType, '_', ' ');
+                end
+
                 plot(ax, timeVec, erp, 'LineWidth', 2.5, 'Color', colors(i,:), ...
-                    'DisplayName', strrep(epochedData(i).eventType, '_', ' '));
+                    'DisplayName', displayName);
             end
 
             % Mark component windows
@@ -1145,7 +1157,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                         'emarker', {'.','k',4,1}, ...
                         'gridscale', 150, ...        % Fine interpolation grid
                         'headrad', 0.6, ...          % Head circle size (valid range: 0-1)
-                        'intrad', 0.7, ...           % Interpolate slightly beyond head
+                        'intrad', 0.6, ...           % Interpolate to head boundary (no overspill)
                         'whitebk', 'on');            % White background
 
                     % Capture the plot as an image
@@ -1158,8 +1170,14 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                     axis(ax, 'off');
                     axis(ax, 'image');
 
-                    title(ax, strrep(epochedData(eventIdx).eventType, '_', ' '), ...
-                        'FontSize', 9, 'FontWeight', 'bold', 'Interpreter', 'none');
+                    % Use original event type for title if available
+                    if isfield(epochedData(eventIdx), 'originalEventType')
+                        titleText = strrep(epochedData(eventIdx).originalEventType, '_', ' ');
+                    else
+                        titleText = strrep(epochedData(eventIdx).eventType, '_', ' ');
+                    end
+
+                    title(ax, titleText, 'FontSize', 9, 'FontWeight', 'bold', 'Interpreter', 'none');
                 catch ME
                     % Fallback if topoplot fails
                     try
@@ -1563,7 +1581,13 @@ function erpAnalysis = analyzeERPComponentsGUI(epochedData, timeWindow, roiChann
         p600LatTime = timeVector(p600Idx);
         p600LatTime = p600LatTime(p600Lat);
 
-        erpAnalysis(i).condition = epochedData(i).eventType;
+        % Use original event type if available
+        if isfield(epochedData(i), 'originalEventType')
+            erpAnalysis(i).condition = epochedData(i).originalEventType;
+        else
+            erpAnalysis(i).condition = epochedData(i).eventType;
+        end
+
         erpAnalysis(i).n250.amplitude = n250Amp;
         erpAnalysis(i).n250.latency = n250LatTime;
         erpAnalysis(i).n400.amplitude = n400Amp;
