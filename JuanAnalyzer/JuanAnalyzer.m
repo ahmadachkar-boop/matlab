@@ -1100,15 +1100,42 @@ function channels = getROIChannels(EEG, roiSelection)
     % Output:
     %   channels - Vector of channel indices
 
-    if strcmp(roiSelection, 'all')
-        channels = 1:EEG.nbchan;
-        return;
-    end
-
     % Check if channel locations exist
     if ~isfield(EEG, 'chanlocs') || isempty(EEG.chanlocs)
         warning('No channel locations found. Using all channels.');
         channels = 1:EEG.nbchan;
+        return;
+    end
+
+    % Handle "all channels" case - exclude reference electrodes
+    if strcmp(roiSelection, 'all')
+        channels = [];
+        for ch = 1:EEG.nbchan
+            % Skip reference electrodes
+            isRef = false;
+            if isfield(EEG.chanlocs, 'type') && ~isempty(EEG.chanlocs(ch).type)
+                if EEG.chanlocs(ch).type == 1  % Type 1 = reference in EGI
+                    isRef = true;
+                end
+            end
+            if isfield(EEG.chanlocs, 'ref') && ~isempty(EEG.chanlocs(ch).ref)
+                if ~isempty(strfind(lower(EEG.chanlocs(ch).ref), 'ref'))
+                    isRef = true;
+                end
+            end
+
+            if ~isRef
+                channels(end+1) = ch;
+            end
+        end
+
+        % Debug output (first call only)
+        persistent allDebugShown
+        if isempty(allDebugShown)
+            fprintf('[ROI] All channels: %d channels selected (%d excluded as reference)\n', ...
+                length(channels), EEG.nbchan - length(channels));
+            allDebugShown = true;
+        end
         return;
     end
 
