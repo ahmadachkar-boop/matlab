@@ -70,6 +70,13 @@ classdef JuanAnalyzer < matlab.apps.AppBase
     methods (Access = public)
 
         function app = JuanAnalyzer
+            % Add JuanAnalyzer folder to path (so helper functions are found)
+            appPath = fileparts(mfilename('fullpath'));
+            if ~contains(path, appPath)
+                addpath(appPath);
+                fprintf('Added to path: %s\n', appPath);
+            end
+
             % Create and configure UI
             createComponents(app);
             initializeApp(app);
