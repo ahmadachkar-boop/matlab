@@ -57,12 +57,18 @@ function discovery = discoverEventFields(EEG, structure, varargin)
 
     % Parse events based on detected format
     allFieldData = struct();
+    eventSamples = {};  % Collect actual event structures for AI
 
     for i = sampleIndices
         evt = EEG.event(i);
 
         if ~isfield(evt, 'type')
             continue;
+        end
+
+        % Collect first 15 events as samples for AI (diverse sample)
+        if length(eventSamples) < 15
+            eventSamples{end+1} = evt;
         end
 
         eventType = char(evt.type);
@@ -254,19 +260,63 @@ function discovery = discoverEventFields(EEG, structure, varargin)
     % AI Integration
     if useAI
         try
-            % Call AI analysis
-            aiAnalysis = callAIAnalysis(discovery.fieldStats, structure, aiProvider);
+            % Call AI analysis with event samples for enhanced context
+            aiAnalysis = callAIAnalysis(discovery.fieldStats, structure, aiProvider, eventSamples);
 
             % Merge AI recommendations with heuristic results
-            fprintf('=== MERGING AI RECOMMENDATIONS ===\n');
-            fprintf('Heuristic grouping: %s\n', strjoin(discovery.groupingFields, ', '));
-            fprintf('AI grouping:        %s\n', strjoin(aiAnalysis.grouping_fields, ', '));
+            fprintf('=== AI ANALYSIS RESULTS ===\n');
+
+            % Show experimental paradigm identification
+            if isfield(aiAnalysis, 'experimental_paradigm')
+                fprintf('\nExperimental Paradigm Identified:\n');
+                fprintf('  Type: %s\n', aiAnalysis.experimental_paradigm.type);
+                fprintf('  Description: %s\n', aiAnalysis.experimental_paradigm.description);
+                if isfield(aiAnalysis.experimental_paradigm, 'key_manipulations')
+                    fprintf('  Key manipulations: %s\n', strjoin(aiAnalysis.experimental_paradigm.key_manipulations, ', '));
+                end
+            end
+
+            % Show practice trial patterns
+            if isfield(aiAnalysis, 'practice_trial_patterns') && ~isempty(aiAnalysis.practice_trial_patterns)
+                fprintf('\nPractice Trials Detected:\n');
+                for i = 1:length(aiAnalysis.practice_trial_patterns)
+                    ptp = aiAnalysis.practice_trial_patterns(i);
+                    fprintf('  Pattern "%s" in field "%s": %s\n', ...
+                        ptp.pattern, ptp.field, ptp.reasoning);
+                    % Add to practice patterns
+                    discovery.practicePatterns{end+1} = ptp.pattern;
+                end
+                discovery.practicePatterns = unique(discovery.practicePatterns);
+            end
+
+            % Show condition recommendations
+            if isfield(aiAnalysis, 'condition_recommendations')
+                fprintf('\nCondition Recommendations:\n');
+                if isfield(aiAnalysis.condition_recommendations, 'include')
+                    fprintf('  Include: %s\n', strjoin(aiAnalysis.condition_recommendations.include, ', '));
+                end
+                if isfield(aiAnalysis.condition_recommendations, 'exclude')
+                    fprintf('  Exclude: %s\n', strjoin(aiAnalysis.condition_recommendations.exclude, ', '));
+                end
+                if isfield(aiAnalysis.condition_recommendations, 'primary_comparisons')
+                    fprintf('  Recommended Comparisons:\n');
+                    for i = 1:length(aiAnalysis.condition_recommendations.primary_comparisons)
+                        comp = aiAnalysis.condition_recommendations.primary_comparisons(i);
+                        fprintf('    %s vs %s (ERP: %s)\n', ...
+                            comp.condition_a, comp.condition_b, comp.erp_component);
+                    end
+                end
+            end
+
+            fprintf('\nField Classification:\n');
+            fprintf('  Heuristic grouping: %s\n', strjoin(discovery.groupingFields, ', '));
+            fprintf('  AI grouping:        %s\n', strjoin(aiAnalysis.grouping_fields, ', '));
 
             % Decide whether to use AI recommendations
             % When mode is 'always', always use AI regardless of confidence
             % Otherwise, only use AI if confidence is higher than heuristic
             if strcmp(useAIMode, 'always')
-                fprintf('✓ Using AI recommendations (mode: always)\n');
+                fprintf('  ✓ Using AI recommendations (mode: always)\n');
                 discovery.groupingFields = aiAnalysis.grouping_fields;
                 discovery.excludeFields = union(discovery.excludeFields, aiAnalysis.exclude_fields);
                 discovery.confidence = aiAnalysis.confidence;

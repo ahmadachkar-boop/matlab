@@ -1,16 +1,20 @@
-function aiAnalysis = callAIAnalysis(fieldStats, structure, provider)
+function aiAnalysis = callAIAnalysis(fieldStats, structure, provider, eventSamples)
 % CALLAIANALYSIS - Call LLM API for intelligent field classification
 %
-% This function sends field metadata to an LLM (Claude or OpenAI) and
-% receives intelligent recommendations for field classification.
+% This function sends field metadata and sample events to an LLM (Claude or OpenAI)
+% and receives intelligent recommendations for field classification and analysis.
 %
 % Inputs:
 %   fieldStats - Struct with field statistics from discoverEventFields
 %   structure - Detected event structure from detectEventStructure
 %   provider - (Optional) 'claude' or 'openai' (default: 'claude')
+%   eventSamples - (Optional) Cell array of sample event structures
 %
 % Output:
 %   aiAnalysis - Struct containing AI recommendations:
+%     .experimental_paradigm - Identified experimental design
+%     .practice_trial_patterns - Detected practice trial patterns
+%     .condition_recommendations - Which conditions to include/exclude
 %     .grouping_fields - Recommended fields for grouping
 %     .exclude_fields - Fields to exclude
 %     .field_classifications - Detailed classifications
@@ -22,16 +26,22 @@ function aiAnalysis = callAIAnalysis(fieldStats, structure, provider)
 %   For OpenAI: OPENAI_API_KEY
 %
 % Example:
-%   aiAnalysis = callAIAnalysis(fieldStats, structure, 'claude');
+%   aiAnalysis = callAIAnalysis(fieldStats, structure, 'claude', eventSamples);
 
     if nargin < 3
         provider = 'claude';
     end
+    if nargin < 4
+        eventSamples = {};
+    end
 
-    fprintf('🤖 Calling %s API for intelligent field analysis...\n', upper(provider));
+    fprintf('🤖 Calling %s API for intelligent analysis...\n', upper(provider));
+    if ~isempty(eventSamples)
+        fprintf('   Providing %d sample events for context...\n', length(eventSamples));
+    end
 
-    % Build the prompt
-    prompt = buildFieldAnalysisPrompt(fieldStats, structure);
+    % Build the enhanced prompt with event samples
+    prompt = buildFieldAnalysisPrompt(fieldStats, structure, eventSamples);
 
     % Call the appropriate API
     switch lower(provider)
