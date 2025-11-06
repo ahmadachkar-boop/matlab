@@ -66,8 +66,8 @@ function discovery = discoverEventFields(EEG, structure, varargin)
             continue;
         end
 
-        % Collect first 15 events as samples for AI (diverse sample)
-        if length(eventSamples) < 15
+        % Collect first 30 events as samples for AI (diverse sample)
+        if length(eventSamples) < 30
             eventSamples{end+1} = evt;
         end
 

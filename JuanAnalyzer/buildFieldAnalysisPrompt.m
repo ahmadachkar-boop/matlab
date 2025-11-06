@@ -36,7 +36,7 @@ function prompt = buildFieldAnalysisPrompt(fieldStats, structure, varargin)
         prompt = [prompt sprintf('\nSAMPLE EVENTS (actual event structures from the dataset):\n')];
         prompt = [prompt sprintf('These show the real event data structure and values:\n\n')];
 
-        for i = 1:min(10, length(eventSamples))
+        for i = 1:min(25, length(eventSamples))
             evt = eventSamples{i};
             prompt = [prompt sprintf('Event %d:\n', i)];
 
@@ -104,17 +104,17 @@ function prompt = buildFieldAnalysisPrompt(fieldStats, structure, varargin)
         fieldName = fieldNames{i};
         stats = fieldStats.(fieldName);
 
-        % Format sample values
-        sampleVals = stats.uniqueValues(1:min(5, length(stats.uniqueValues)));
-        if length(stats.uniqueValues) > 5
-            sampleStr = [strjoin(sampleVals, ', '), sprintf(', ... (%d more)', length(stats.uniqueValues) - 5)];
+        % Format sample values (show up to 15 values)
+        sampleVals = stats.uniqueValues(1:min(15, length(stats.uniqueValues)));
+        if length(stats.uniqueValues) > 15
+            sampleStr = [strjoin(sampleVals, ', '), sprintf(', ... (%d more)', length(stats.uniqueValues) - 15)];
         else
             sampleStr = strjoin(sampleVals, ', ');
         end
 
-        % Limit sample string length
-        if length(sampleStr) > 40
-            sampleStr = [sampleStr(1:37), '...'];
+        % Limit sample string length (increased to accommodate more values)
+        if length(sampleStr) > 80
+            sampleStr = [sampleStr(1:77), '...'];
         end
 
         prompt = [prompt sprintf('%-25s | %12d | %10.1f%% | %s\n', ...
