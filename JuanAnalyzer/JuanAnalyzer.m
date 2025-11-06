@@ -697,6 +697,14 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             roiSelection = app.ERPROIDropdown.Value;
             roiChannels = getROIChannels(app.Results.EEG, roiSelection);
 
+            % Warn if "all" channels selected (will produce flat line due to spatial cancellation)
+            if strcmp(roiSelection, 'all')
+                fprintf('\n⚠️ WARNING: "All Channels" averages all 129 channels together.\n');
+                fprintf('   Positive and negative scalp regions cancel out → FLAT LINE\n');
+                fprintf('   This is mathematically correct but scientifically useless!\n');
+                fprintf('   → Use ROI selections (Central, Frontal, etc.) for meaningful ERPs\n\n');
+            end
+
             % Display info about ROI
             if strcmp(roiSelection, 'all')
                 roiInfo = sprintf('All %d channels', length(roiChannels));
@@ -1128,17 +1136,16 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                     maxAbsVal = max(abs(topoData));
                     fprintf('[TOPO Debug] Color limits: [%.2f, %.2f]\n', -maxAbsVal, maxAbsVal);
 
-                    % Plot topomap with head circle matching interpolation radius
+                    % Plot topomap with proper parameters
                     % Note: HydroCel GSN 128 uses 2D planar layout (all z=0)
-                    % Strategy: Make head circle encompass all interpolated colors
                     topoplot(topoData, app.Results.EEG.chanlocs, ...
                         'electrodes', 'on', ...
                         'style', 'map', ...
                         'maplimits', 'absmax', ...
                         'emarker', {'.','k',4,1}, ...
                         'gridscale', 150, ...        % Fine interpolation grid
-                        'headrad', 1.2, ...          % Large head circle to encompass colors
-                        'intrad', 1.2, ...           % Interpolate to same radius as head
+                        'headrad', 0.6, ...          % Head circle size (valid range: 0-1)
+                        'intrad', 0.7, ...           % Interpolate slightly beyond head
                         'whitebk', 'on');            % White background
 
                     % Capture the plot as an image
