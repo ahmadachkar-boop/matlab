@@ -1013,6 +1013,30 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             app.TopoTimeLabel.Text = sprintf('%.0f ms', app.TopoTimeSlider.Value);
 
             epochedData = app.Results.epochedData;
+
+            % Debug: Show what we're plotting
+            fprintf('\n[TOPO] === Plotting Topographic Maps ===\n');
+            fprintf('[TOPO] Time: %.0f ms (%.3f s)\n', app.TopoTimeSlider.Value, targetTime);
+            fprintf('[TOPO] Selected events: %d\n', length(selectedIndices));
+            for idx = selectedIndices
+                fprintf('[TOPO]   - Event %d: "%s" (%d epochs, avgERP size: %dx%d)\n', ...
+                    idx, epochedData(idx).eventType, epochedData(idx).numEpochs, ...
+                    size(epochedData(idx).avgERP, 1), size(epochedData(idx).avgERP, 2));
+            end
+
+            % Debug: Check if avgERP data is actually different between conditions
+            if length(selectedIndices) >= 2
+                idx1 = selectedIndices(1);
+                idx2 = selectedIndices(2);
+                [~, tIdx] = min(abs(epochedData(idx1).timeVector - targetTime));
+                data1 = epochedData(idx1).avgERP(:, tIdx);
+                data2 = epochedData(idx2).avgERP(:, tIdx);
+                dataCorr = corr(data1, data2);
+                fprintf('[TOPO] Data correlation between first two events: %.4f (1.0 = identical)\n', dataCorr);
+                if dataCorr > 0.999
+                    fprintf('[TOPO] ⚠️ WARNING: Data appears identical between conditions!\n');
+                end
+            end
             nMaps = length(selectedIndices);
 
             % Calculate grid layout (max 4 columns)
@@ -1040,6 +1064,13 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 [~, timeIdx] = min(abs(epochedData(eventIdx).timeVector - targetTime));
                 topoData = epochedData(eventIdx).avgERP(:, timeIdx);
 
+                % Debug output
+                fprintf('[TOPO Debug] Event %d ("%s"): timeIdx=%d/%d, targetTime=%.3fs\n', ...
+                    eventIdx, epochedData(eventIdx).eventType, timeIdx, ...
+                    length(epochedData(eventIdx).timeVector), targetTime);
+                fprintf('[TOPO Debug] Data range: %.2f to %.2f µV (mean=%.2f, std=%.2f)\n', ...
+                    min(topoData), max(topoData), mean(topoData), std(topoData));
+
                 % Plot topomap using temporary figure (topoplot doesn't work with uiaxes)
                 try
                     % Create hidden figure with traditional axes
@@ -1048,16 +1079,14 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
                     % Plot topomap with proper head shape and boundary constraints
                     % Note: HydroCel GSN 128 uses 2D planar layout (all z=0)
-                    % Must constrain interpolation to prevent color spillover
                     topoplot(topoData, app.Results.EEG.chanlocs, ...
                         'electrodes', 'on', ...
                         'style', 'map', ...
                         'maplimits', 'absmax', ...
                         'emarker', {'.','k',4,1}, ...
                         'gridscale', 150, ...        % Fine interpolation grid
-                        'intrad', 0.5, ...           % Interpolate only within head circle
-                        'whitebk', 'on', ...         % White background
-                        'nosedir', '+Y');            % Front is +Y in this layout
+                        'intrad', 1.0, ...           % Interpolate to full head (was 0.5, too restrictive)
+                        'whitebk', 'on');            % White background
 
                     % Capture the plot as an image
                     frame = getframe(tempFig);
