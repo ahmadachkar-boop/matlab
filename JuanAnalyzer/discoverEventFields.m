@@ -613,8 +613,14 @@ function prioritized = prioritizeGroupingFields(fields, stats)
         end
     end
 
-    [~, sortIdx] = sort(priorities, 'descend');
-    prioritized = fields(sortIdx);
+    % Sort by priority (descending), then alphabetically for consistency
+    % First, sort alphabetically
+    [sortedFields, alphaIdx] = sort(fields);
+    sortedPriorities = priorities(alphaIdx);
+
+    % Then sort by priority (stable sort preserves alphabetical order)
+    [~, priorityIdx] = sort(sortedPriorities, 'descend', 'stable');
+    prioritized = sortedFields(priorityIdx);
 
     % Limit to top 2-3 fields by default (avoid over-fragmentation)
     % Keep top 2 if both are high priority (>120), otherwise top 3

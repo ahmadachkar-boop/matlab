@@ -95,6 +95,7 @@ function [selectedEventTypes, structure, discovery] = autoSelectTrialEventsUnive
     fprintf('========================================\n');
     fprintf('Format: %s\n', structure.format);
     fprintf('Grouping by: %s\n', strjoin(groupByFields, ', '));
+    fprintf('Note: Grouping fields sorted alphabetically for consistency\n');
     if excludePractice
         fprintf('Excluding practice: yes\n');
     end
@@ -154,7 +155,7 @@ function [selectedEventTypes, structure, discovery] = autoSelectTrialEventsUnive
 
         % Valid condition label - add it
         conditionLabels{end+1} = condLabel;
-        originalEventTypes{end+1} = eventType;
+        originalEventTypes{end+1} = condLabel;  % Store parsed label, not raw event.type
         eventIndices(end+1) = i;
     end
 
@@ -171,6 +172,14 @@ function [selectedEventTypes, structure, discovery] = autoSelectTrialEventsUnive
 
     if isempty(conditionLabels)
         error('No events could be parsed! Check your data or try manual configuration.');
+    end
+
+    % Show examples of parsed event names for verification
+    fprintf('  Example event names (first 5 unique):\n');
+    uniqueExamples = unique(originalEventTypes, 'stable');
+    numExamples = min(5, length(uniqueExamples));
+    for i = 1:numExamples
+        fprintf('    - %s\n', uniqueExamples{i});
     end
 
     %% PHASE 4: Exclude practice trials
