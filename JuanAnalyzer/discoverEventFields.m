@@ -618,14 +618,17 @@ function prioritized = prioritizeGroupingFields(fields, stats)
     [sortedFields, alphaIdx] = sort(fields);
     sortedPriorities = priorities(alphaIdx);
 
-    % Then sort by priority (stable sort preserves alphabetical order)
-    [~, priorityIdx] = sort(sortedPriorities, 'descend', 'stable');
+    % Then sort by priority (MATLAB's sort is stable, preserves alphabetical order)
+    [~, priorityIdx] = sort(sortedPriorities, 'descend');
     prioritized = sortedFields(priorityIdx);
+
+    % Get the sorted priorities for limit checking
+    finalPriorities = sortedPriorities(priorityIdx);
 
     % Limit to top 2-3 fields by default (avoid over-fragmentation)
     % Keep top 2 if both are high priority (>120), otherwise top 3
     if length(prioritized) > 2
-        if priorities(sortIdx(1)) > 120 && priorities(sortIdx(2)) > 120
+        if finalPriorities(1) > 120 && finalPriorities(2) > 120
             % Keep just the top 2 high-priority mffkey fields
             prioritized = prioritized(1:2);
         elseif length(prioritized) > 3
