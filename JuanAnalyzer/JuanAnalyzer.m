@@ -607,7 +607,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             % Stage 8: Frequency Analysis
             updateProgress(app, 8, 'Analyzing Frequency Bands...');
-            freqAnalysis = analyzeFrequencyBandsGUI(EEG);
+            freqAnalysis = analyzeFrequencyBandsGUI(EEG, epochedData, timeWindow);
 
             % Store results
             app.Results = struct();
@@ -804,34 +804,56 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         function plotFrequencyResults(app, ax1, ax2)
             freqAnalysis = app.Results.freqAnalysis;
 
-            % PSD plot
-            if isfield(freqAnalysis, 'psd')
-                meanPSD = mean(freqAnalysis.psd, 1);
-                plot(ax1, freqAnalysis.freqs, 10*log10(meanPSD), 'LineWidth', 2);
-                xlabel(ax1, 'Frequency (Hz)');
-                ylabel(ax1, 'Power (dB)');
-                title(ax1, 'Power Spectral Density');
-                grid(ax1, 'on');
-                xlim(ax1, [0.5 50]);
-            end
-
-            % Band powers
-            if isfield(freqAnalysis, 'delta')
+            % Plot 1: Baseline vs Stimulus Power
+            if isfield(freqAnalysis, 'delta') && isfield(freqAnalysis.delta, 'meanBaselinePower')
                 bandNames = {'Delta', 'Theta', 'Alpha', 'Beta', 'Gamma'};
                 bandFields = {'delta', 'theta', 'alpha', 'beta', 'gamma'};
-                bandPowers = zeros(1, 5);
+                baselinePowers = zeros(1, 5);
+                stimulusPowers = zeros(1, 5);
 
                 for b = 1:5
                     if isfield(freqAnalysis, bandFields{b})
-                        bandPowers(b) = freqAnalysis.(bandFields{b}).meanPower;
+                        baselinePowers(b) = freqAnalysis.(bandFields{b}).meanBaselinePower;
+                        stimulusPowers(b) = freqAnalysis.(bandFields{b}).meanStimulusPower;
                     end
                 end
 
-                bar(ax2, 1:5, bandPowers, 'FaceColor', [0.3 0.6 0.9]);
+                x = 1:5;
+                bar(ax1, x, [baselinePowers; stimulusPowers]', 'grouped');
+                set(ax1, 'XTick', 1:5, 'XTickLabel', bandNames);
+                ylabel(ax1, 'Power (μV²/Hz)');
+                title(ax1, 'Baseline vs Stimulus Power');
+                legend(ax1, {'Baseline (-200 to 0 ms)', 'Stimulus (0 to 500 ms)'}, 'Location', 'best');
+                grid(ax1, 'on');
+            end
+
+            % Plot 2: Power changes in dB
+            if isfield(freqAnalysis, 'delta') && isfield(freqAnalysis.delta, 'meanPowerChange_dB')
+                bandNames = {'Delta', 'Theta', 'Alpha', 'Beta', 'Gamma'};
+                bandFields = {'delta', 'theta', 'alpha', 'beta', 'gamma'};
+                powerChanges = zeros(1, 5);
+
+                for b = 1:5
+                    if isfield(freqAnalysis, bandFields{b})
+                        powerChanges(b) = freqAnalysis.(bandFields{b}).meanPowerChange_dB;
+                    end
+                end
+
+                colors = zeros(5, 3);
+                for i = 1:5
+                    if powerChanges(i) > 0
+                        colors(i, :) = [0.8, 0.2, 0.2];  % Red for increase
+                    else
+                        colors(i, :) = [0.2, 0.6, 0.9];  % Blue for decrease
+                    end
+                end
+
+                bar(ax2, 1:5, powerChanges, 'FaceColor', 'flat', 'CData', colors);
                 set(ax2, 'XTick', 1:5, 'XTickLabel', bandNames);
-                ylabel(ax2, 'Mean Power (μV²/Hz)');
-                title(ax2, 'Frequency Band Power');
+                ylabel(ax2, 'Power Change (dB)');
+                title(ax2, 'Baseline-Corrected Power Change');
                 grid(ax2, 'on');
+                yline(ax2, 0, 'k--', 'LineWidth', 1);
             end
         end
 
@@ -967,18 +989,44 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 summary{end+1} = '';
             end
 
-            % Frequency Bands
-            summary{end+1} = 'FREQUENCY BANDS:';
+            % Frequency Bands (Baseline-Corrected Power)
+            summary{end+1} = 'FREQUENCY BANDS (Baseline-Corrected):';
             summary{end+1} = '----------------------------------------';
+            summary{end+1} = 'Baseline: -200 to 0 ms | Stimulus: 0 to 500 ms';
+            summary{end+1} = '';
 
-            if isfield(results.freqAnalysis, 'delta')
+            if isfield(results.freqAnalysis, 'delta') && isfield(results.freqAnalysis.delta, 'meanStimulusPower')
                 bandNames = {'delta', 'theta', 'alpha', 'beta', 'gamma'};
                 bandRanges = {'0.5-4 Hz', '4-8 Hz', '8-13 Hz', '13-30 Hz', '30-50 Hz'};
+
+                % Show average across conditions first
+                summary{end+1} = 'Average across all conditions:';
                 for b = 1:length(bandNames)
                     bandName = bandNames{b};
                     if isfield(results.freqAnalysis, bandName)
-                        summary{end+1} = sprintf('%s (%s): %.2f μV²/Hz', ...
-                            upper(bandName), bandRanges{b}, results.freqAnalysis.(bandName).meanPower);
+                        summary{end+1} = sprintf('  %s (%s): %.2f μV²/Hz (stimulus) | %+.2f dB change', ...
+                            upper(bandName), bandRanges{b}, ...
+                            results.freqAnalysis.(bandName).meanStimulusPower, ...
+                            results.freqAnalysis.(bandName).meanPowerChange_dB);
+                    end
+                end
+
+                % Show per-condition breakdown if available
+                if isfield(results.freqAnalysis, 'conditions') && ~isempty(results.freqAnalysis.conditions)
+                    summary{end+1} = '';
+                    summary{end+1} = 'Per-condition power changes (dB):';
+                    for condIdx = 1:length(results.freqAnalysis.conditions)
+                        condName = results.freqAnalysis.conditions{condIdx};
+                        summary{end+1} = sprintf('  %s:', condName);
+                        for b = 1:length(bandNames)
+                            bandName = bandNames{b};
+                            if isfield(results.freqAnalysis, bandName) && ...
+                               length(results.freqAnalysis.(bandName).powerChange_dB) >= condIdx
+                                summary{end+1} = sprintf('    %s: %+.2f dB', ...
+                                    upper(bandName), ...
+                                    results.freqAnalysis.(bandName).powerChange_dB(condIdx));
+                            end
+                        end
                     end
                 end
             end
@@ -1598,7 +1646,10 @@ function erpAnalysis = analyzeERPComponentsGUI(epochedData, timeWindow, roiChann
     end
 end
 
-function freqAnalysis = analyzeFrequencyBandsGUI(EEG)
+function freqAnalysis = analyzeFrequencyBandsGUI(EEG, epochedData, timeWindow)
+    % Induced/Evoked Power Analysis with Baseline Correction
+    % Computes spectral power per condition in stimulus window vs baseline
+
     bands = struct();
     bands.delta = [0.5, 4];
     bands.theta = [4, 8];
@@ -1607,39 +1658,119 @@ function freqAnalysis = analyzeFrequencyBandsGUI(EEG)
     bands.gamma = [30, 50];
 
     freqAnalysis = struct();
+    freqAnalysis.conditions = {};
+
+    fprintf('\n[Frequency Analysis] Computing baseline-corrected spectral power per condition...\n');
 
     try
-        % Detrend and remove DC offset to prevent low-frequency contamination
-        dataDetrended = detrend(EEG.data', 'constant');  % Remove DC offset
-        dataDetrended = detrend(dataDetrended, 'linear')';  % Remove linear trend
+        % Define time windows (in seconds)
+        baselineWindow = [timeWindow(1), 0];  % e.g., -0.2 to 0 s
+        stimulusWindow = [0, 0.5];            % e.g., 0 to 0.5 s (stimulus processing)
 
-        % Use Welch's method for power spectral density
-        % Increased window size for better frequency resolution at low frequencies
-        windowSize = min(EEG.srate * 4, size(dataDetrended, 2));  % 4-second windows
-        [psd, freqs] = pwelch(dataDetrended', windowSize, [], [], EEG.srate);
-        psd = psd';
-
+        fs = EEG.srate;
         bandNames = fieldnames(bands);
+
+        % Initialize per-band storage
         for b = 1:length(bandNames)
-            bandName = bandNames{b};
-            bandRange = bands.(bandName);
-
-            freqIdx = freqs >= bandRange(1) & freqs <= bandRange(2);
-
-            % Average power across frequency bins, then across channels
-            bandPower = mean(psd(:, freqIdx), 2);  % Power per channel
-            meanPower = mean(bandPower);  % Mean across channels
-            stdPower = std(bandPower);
-
-            freqAnalysis.(bandName).meanPower = meanPower;
-            freqAnalysis.(bandName).stdPower = stdPower;
-            freqAnalysis.(bandName).channelPowers = bandPower;
+            freqAnalysis.(bandNames{b}).conditions = {};
+            freqAnalysis.(bandNames{b}).baselinePower = [];
+            freqAnalysis.(bandNames{b}).stimulusPower = [];
+            freqAnalysis.(bandNames{b}).powerChange_dB = [];
         end
 
-        freqAnalysis.psd = psd;
-        freqAnalysis.freqs = freqs;
+        % Process each condition
+        for condIdx = 1:length(epochedData)
+            if epochedData(condIdx).numEpochs == 0
+                continue;
+            end
+
+            condName = epochedData(condIdx).eventType;
+            fprintf('  Processing: %s (%d epochs)\n', condName, epochedData(condIdx).numEpochs);
+
+            % Get epoch matrix: channels x samples x trials
+            epochMatrix = cat(3, epochedData(condIdx).epochs{:});
+            timeVector = epochedData(condIdx).timeVector;
+
+            % Find time indices for baseline and stimulus windows
+            baselineIdx = timeVector >= baselineWindow(1) & timeVector < baselineWindow(2);
+            stimulusIdx = timeVector >= stimulusWindow(1) & timeVector < stimulusWindow(2);
+
+            if sum(baselineIdx) < 10 || sum(stimulusIdx) < 10
+                fprintf('    ⚠ Insufficient samples in time windows, skipping\n');
+                continue;
+            end
+
+            % Initialize power storage for this condition
+            condPower = struct();
+
+            % Compute power for each frequency band
+            for b = 1:length(bandNames)
+                bandName = bandNames{b};
+                bandRange = bands.(bandName);
+
+                % Filter data to this frequency band using FFT approach
+                % Average across trials first for evoked power
+                avgData = mean(epochMatrix, 3);  % channels x samples
+
+                % Extract baseline and stimulus periods
+                baselineData = avgData(:, baselineIdx);  % channels x baseline_samples
+                stimulusData = avgData(:, stimulusIdx);  % channels x stimulus_samples
+
+                % Compute power using Welch's method on each period
+                windowLength = min(fs, size(baselineData, 2));
+
+                % Baseline power
+                [psdBase, freqs] = pwelch(baselineData', windowLength, [], [], fs);
+                psdBase = psdBase';  % channels x freqs
+                freqIdx = freqs >= bandRange(1) & freqs <= bandRange(2);
+                baselinePower = mean(mean(psdBase(:, freqIdx), 2));  % Average across channels and freqs
+
+                % Stimulus power
+                [psdStim, ~] = pwelch(stimulusData', windowLength, [], [], fs);
+                psdStim = psdStim';
+                stimulusPower = mean(mean(psdStim(:, freqIdx), 2));
+
+                % Baseline correction: convert to dB change
+                powerChange_dB = 10 * log10(stimulusPower / (baselinePower + eps));
+
+                % Store results
+                condPower.(bandName).baselinePower = baselinePower;
+                condPower.(bandName).stimulusPower = stimulusPower;
+                condPower.(bandName).powerChange_dB = powerChange_dB;
+
+                fprintf('    %s: baseline=%.2f, stimulus=%.2f μV²/Hz, change=%+.2f dB\n', ...
+                    upper(bandName), baselinePower, stimulusPower, powerChange_dB);
+            end
+
+            % Store condition results
+            freqAnalysis.conditions{end+1} = condName;
+            for b = 1:length(bandNames)
+                bandName = bandNames{b};
+                freqAnalysis.(bandName).conditions{end+1} = condName;
+                freqAnalysis.(bandName).baselinePower(end+1) = condPower.(bandName).baselinePower;
+                freqAnalysis.(bandName).stimulusPower(end+1) = condPower.(bandName).stimulusPower;
+                freqAnalysis.(bandName).powerChange_dB(end+1) = condPower.(bandName).powerChange_dB;
+            end
+        end
+
+        % Compute overall averages across conditions
+        for b = 1:length(bandNames)
+            bandName = bandNames{b};
+            if ~isempty(freqAnalysis.(bandName).baselinePower)
+                freqAnalysis.(bandName).meanBaselinePower = mean(freqAnalysis.(bandName).baselinePower);
+                freqAnalysis.(bandName).meanStimulusPower = mean(freqAnalysis.(bandName).stimulusPower);
+                freqAnalysis.(bandName).meanPowerChange_dB = mean(freqAnalysis.(bandName).powerChange_dB);
+            else
+                freqAnalysis.(bandName).meanBaselinePower = 0;
+                freqAnalysis.(bandName).meanStimulusPower = 0;
+                freqAnalysis.(bandName).meanPowerChange_dB = 0;
+            end
+        end
+
+        fprintf('  ✓ Frequency analysis complete\n');
 
     catch ME
         warning('Frequency analysis failed: %s', ME.message);
+        fprintf('  Error details: %s\n', ME.getReport());
     end
 end
