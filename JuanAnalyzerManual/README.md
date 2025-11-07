@@ -21,16 +21,27 @@ This is the **manual event selection version** of JuanAnalyzer. Unlike the AI-po
 ## Workflow
 
 1. **Select EEG File** - Browse and load your .mff, .set, or .edf file
-2. **Select Events** - Choose which event types to analyze from the list
+2. **Select Events** - 2-step process:
+   - **Step 1:** Choose which fields to group by (e.g., mffkey_Cond, mffkey_Code)
+   - **Step 2:** Select which resulting event types to analyze
 3. **Start Analysis** - Run the full ERP analysis pipeline
 
-## Event Selection
+## Event Selection (2-Step Process)
 
+### Step 1: Select Grouping Fields
 After loading your file, click "📋 Select Events" to see:
-- All unique event types found in your data
+- All available event fields with unique value counts
+- Auto-selects mffkey* fields by default
+- Choose which fields define your conditions
+- Example: Select `mffkey_Cond` + `mffkey_Code` to get "G23_valid", "SG23_invalid", etc.
+
+### Step 2: Select Event Types
+Based on your field selection:
+- See all unique event combinations
 - Number of trials for each event type
 - Interactive multi-select listbox
 - All events selected by default
+- Can go back to change field selection
 
 ## Use Cases
 
