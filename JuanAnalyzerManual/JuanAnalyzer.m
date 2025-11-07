@@ -108,7 +108,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             % Center the panel in the window (use screen size since figure is maximized)
             screenSize = get(0, 'ScreenSize');
-            panelWidth = 1000;
+            panelWidth = 1200;
             panelHeight = 600;
             panelX = (screenSize(3) - panelWidth) / 2;
             panelY = (screenSize(4) - panelHeight) / 2;
@@ -192,7 +192,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             % Center the panel in the window (use screen size since figure is maximized)
             screenSize = get(0, 'ScreenSize');
-            panelWidth = 1000;
+            panelWidth = 1200;
             panelHeight = 600;
             panelX = (screenSize(3) - panelWidth) / 2;
             panelY = (screenSize(4) - panelHeight) / 2;
@@ -245,7 +245,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             % Center the panel in the window (use screen size since figure is maximized)
             screenSize = get(0, 'ScreenSize');
-            panelWidth = 1100;
+            panelWidth = 1300;
             panelHeight = 700;
             panelX = (screenSize(3) - panelWidth) / 2;
             panelY = (screenSize(4) - panelHeight) / 2;
