@@ -111,7 +111,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Title
             app.TitleLabel = uilabel(app.UploadPanel);
             app.TitleLabel.Position = [200 500 600 50];
-            app.TitleLabel.Text = '🧠 Juan Analyzer';
+            app.TitleLabel.Text = 'Juan Analyzer';
             app.TitleLabel.FontSize = 36;
             app.TitleLabel.FontWeight = 'bold';
             app.TitleLabel.FontColor = [0.2 0.3 0.6];
@@ -128,7 +128,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Browse Button
             app.BrowseButton = uibutton(app.UploadPanel, 'push');
             app.BrowseButton.Position = [350 370 300 50];
-            app.BrowseButton.Text = '📁 Select EEG File';
+            app.BrowseButton.Text = 'Select EEG File';
             app.BrowseButton.FontSize = 18;
             app.BrowseButton.BackgroundColor = [0.3 0.5 0.8];
             app.BrowseButton.FontColor = [1 1 1];
@@ -168,7 +168,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Start Button
             app.StartButton = uibutton(app.UploadPanel, 'push');
             app.StartButton.Position = [350 100 300 50];
-            app.StartButton.Text = '▶ Start Analysis';
+            app.StartButton.Text = 'Start Analysis';
             app.StartButton.FontSize = 18;
             app.StartButton.BackgroundColor = [0.2 0.7 0.3];
             app.StartButton.FontColor = [1 1 1];
@@ -194,7 +194,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Processing label
             app.ProcessingLabel = uilabel(app.ProcessingPanel);
             app.ProcessingLabel.Position = [300 450 400 40];
-            app.ProcessingLabel.Text = '⚙️ Processing EEG Data...';
+            app.ProcessingLabel.Text = 'Processing EEG Data...';
             app.ProcessingLabel.FontSize = 24;
             app.ProcessingLabel.FontWeight = 'bold';
             app.ProcessingLabel.FontColor = [0.2 0.3 0.6];
@@ -240,7 +240,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Title
             titleLabel = uilabel(app.ResultsPanel);
             titleLabel.Position = [300 650 500 40];
-            titleLabel.Text = '✓ Analysis Complete';
+            titleLabel.Text = 'Analysis Complete';
             titleLabel.FontSize = 28;
             titleLabel.FontWeight = 'bold';
             titleLabel.FontColor = [0.2 0.6 0.3];
@@ -252,7 +252,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             % ERP Tab
             app.ERPTab = uitab(app.ResultsTabGroup);
-            app.ERPTab.Title = '📊 ERP Components';
+            app.ERPTab.Title = 'ERP Components';
 
             % Event selection listbox
             eventLabel = uilabel(app.ERPTab);
@@ -301,7 +301,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             % Topographic Maps Tab
             app.TopoTab = uitab(app.ResultsTabGroup);
-            app.TopoTab.Title = '🗺️ Topographic Maps';
+            app.TopoTab.Title = 'Topographic Maps';
 
             % Event selection listbox for topomaps
             topoEventLabel = uilabel(app.TopoTab);
@@ -357,7 +357,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             % Frequency Tab
             app.FreqTab = uitab(app.ResultsTabGroup);
-            app.FreqTab.Title = '📈 Frequency Analysis';
+            app.FreqTab.Title = 'Frequency Analysis';
 
             app.FreqAxes1 = uiaxes(app.FreqTab);
             app.FreqAxes1.Position = [20 20 460 420];
@@ -367,7 +367,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             % Summary Tab
             app.SummaryTab = uitab(app.ResultsTabGroup);
-            app.SummaryTab.Title = '📋 Summary';
+            app.SummaryTab.Title = 'Summary';
 
             app.SummaryTextArea = uitextarea(app.SummaryTab);
             app.SummaryTextArea.Position = [20 20 960 420];
@@ -378,7 +378,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Buttons
             app.NewAnalysisButton = uibutton(app.ResultsPanel, 'push');
             app.NewAnalysisButton.Position = [200 80 250 50];
-            app.NewAnalysisButton.Text = '🔄 New Analysis';
+            app.NewAnalysisButton.Text = 'New Analysis';
             app.NewAnalysisButton.FontSize = 16;
             app.NewAnalysisButton.BackgroundColor = [0.3 0.5 0.8];
             app.NewAnalysisButton.FontColor = [1 1 1];
@@ -386,7 +386,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             app.ExportButton = uibutton(app.ResultsPanel, 'push');
             app.ExportButton.Position = [650 80 250 50];
-            app.ExportButton.Text = '💾 Export Results';
+            app.ExportButton.Text = 'Export Results';
             app.ExportButton.FontSize = 16;
             app.ExportButton.BackgroundColor = [0.2 0.7 0.3];
             app.ExportButton.FontColor = [1 1 1];
@@ -749,10 +749,10 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             % Warn if "all" channels selected (will produce flat line due to spatial cancellation)
             if strcmp(roiSelection, 'all')
-                fprintf('\n⚠️ WARNING: "All Channels" averages all 129 channels together.\n');
-                fprintf('   Positive and negative scalp regions cancel out → FLAT LINE\n');
+                fprintf('\nWARNING: "All Channels" averages all 129 channels together.\n');
+                fprintf('   Positive and negative scalp regions cancel out -> FLAT LINE\n');
                 fprintf('   This is mathematically correct but scientifically useless!\n');
-                fprintf('   → Use ROI selections (Central, Frontal, etc.) for meaningful ERPs\n\n');
+                fprintf('   -> Use ROI selections (Central, Frontal, etc.) for meaningful ERPs\n\n');
             end
 
             % Display info about ROI
@@ -1179,7 +1179,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 dataCorr = corr(data1, data2);
                 fprintf('[TOPO] Data correlation between first two events: %.4f (1.0 = identical)\n', dataCorr);
                 if dataCorr > 0.999
-                    fprintf('[TOPO] ⚠️ WARNING: Data appears identical between conditions!\n');
+                    fprintf('[TOPO] WARNING: Data appears identical between conditions!\n');
                 end
             end
             nMaps = length(selectedIndices);
@@ -1227,10 +1227,10 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
                 % Check for problematic data
                 if std(topoData) < 0.01
-                    fprintf('[TOPO Debug] ⚠️ WARNING: Very low variance (std=%.4f) - map may be flat!\n', std(topoData));
+                    fprintf('[TOPO Debug] WARNING: Very low variance (std=%.4f) - map may be flat!\n', std(topoData));
                 end
                 if all(abs(topoData) < 0.01)
-                    fprintf('[TOPO Debug] ⚠️ WARNING: All values near zero - data may be invalid!\n');
+                    fprintf('[TOPO Debug] WARNING: All values near zero - data may be invalid!\n');
                 end
 
                 % Plot topomap using temporary figure (topoplot doesn't work with uiaxes)
@@ -1743,7 +1743,7 @@ function freqAnalysis = analyzeFrequencyBandsGUI(EEG, epochedData, timeWindow)
             stimulusIdx = timeVector >= stimulusWindow(1) & timeVector < stimulusWindow(2);
 
             if sum(baselineIdx) < 10 || sum(stimulusIdx) < 10
-                fprintf('    ⚠ Insufficient samples in time windows, skipping\n');
+                fprintf('    WARNING: Insufficient samples in time windows, skipping\n');
                 continue;
             end
 
@@ -1814,7 +1814,7 @@ function freqAnalysis = analyzeFrequencyBandsGUI(EEG, epochedData, timeWindow)
             end
         end
 
-        fprintf('  ✓ Frequency analysis complete\n');
+        fprintf('  Frequency analysis complete\n');
 
     catch ME
         warning('Frequency analysis failed: %s', ME.message);
