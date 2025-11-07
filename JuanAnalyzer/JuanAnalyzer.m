@@ -529,16 +529,22 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Stage 3: Artifact Detection
             updateProgress(app, 3, 'Detecting Artifacts...');
 
-            % Bad channel detection (identify but DON'T remove - user request)
+            % Multi-method bad channel detection (identify but DON'T remove)
             badChans = [];
             badChanLabels = {};
+            badChanReasons = {};
             try
-                % Run pop_rejchan to identify bad channels
-                EEG_temp = pop_rejchan(EEG, 'elec', 1:EEG.nbchan, 'threshold', 7, 'norm', 'on', 'measure', 'kurt');
+                % Method 1-3: Kurtosis, Probability, Spectrum
+                % Kurtosis: catches spiky/artifactual channels
+                % Probability: catches statistically abnormal activity
+                % Spectrum: catches noisy channels via frequency analysis
+                EEG_temp = pop_rejchan(EEG, 'elec', 1:EEG.nbchan, ...
+                    'threshold', [5 5 5], ...
+                    'norm', 'on', ...
+                    'measure', 'kurt', 'prob', 'spec');
 
-                % Identify which channels would be removed
+                % Identify which channels were flagged
                 if EEG_temp.nbchan < EEG.nbchan
-                    % Find removed channels by comparing channel sets
                     originalChans = 1:EEG.nbchan;
                     if isfield(EEG, 'chanlocs') && ~isempty(EEG.chanlocs)
                         originalLabels = {EEG.chanlocs.labels};
@@ -549,8 +555,47 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                         badChans = setdiff(originalChans, 1:EEG_temp.nbchan);
                     end
                 end
+
+                % Method 4: Correlation with neighboring channels
+                % Catches channels uncorrelated with neighbors
+                if isfield(EEG, 'chanlocs') && length(EEG.chanlocs) > 1
+                    correlationThreshold = 0.4;
+                    for i = 1:EEG.nbchan
+                        % Calculate correlation with all other channels
+                        chanData = EEG.data(i, :);
+                        corrVals = zeros(EEG.nbchan - 1, 1);
+                        idx = 1;
+                        for j = 1:EEG.nbchan
+                            if i ~= j
+                                corrVals(idx) = corr(chanData', EEG.data(j, :)');
+                                idx = idx + 1;
+                            end
+                        end
+
+                        % If mean correlation is too low, mark as bad
+                        meanCorr = mean(abs(corrVals));
+                        if meanCorr < correlationThreshold
+                            if ~ismember(i, badChans)
+                                badChans(end+1) = i;
+                                if isfield(EEG, 'chanlocs') && ~isempty(EEG.chanlocs)
+                                    badChanLabels{end+1} = EEG.chanlocs(i).labels;
+                                end
+                            end
+                        end
+                    end
+                end
+
+                % Sort bad channels
+                if ~isempty(badChans)
+                    [badChans, sortIdx] = sort(badChans);
+                    if ~isempty(badChanLabels)
+                        badChanLabels = badChanLabels(sortIdx);
+                    end
+                end
+
                 % DON'T apply the removal - keep EEG unchanged, just record bad channels
-            catch
+            catch ME
+                fprintf('Warning: Bad channel detection encountered error: %s\n', ME.message);
                 % If detection fails, continue without bad channel info
             end
 
@@ -890,7 +935,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             summary{end+1} = 'CHANNEL QUALITY:';
             summary{end+1} = '----------------------------------------';
             if ~isempty(results.badChannels)
-                summary{end+1} = sprintf('⚠ WARNING: %d bad channel(s) detected (KEPT in analysis):', length(results.badChannels));
+                summary{end+1} = sprintf('WARNING: %d bad channel(s) detected (KEPT in analysis):', length(results.badChannels));
                 if isfield(results, 'badChannelLabels') && ~isempty(results.badChannelLabels)
                     for i = 1:length(results.badChannelLabels)
                         summary{end+1} = sprintf('   - %s', results.badChannelLabels{i});
@@ -900,9 +945,11 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                         summary{end+1} = sprintf('   - Channel %d', results.badChannels(i));
                     end
                 end
-                summary{end+1} = '   (Detected using kurtosis > 7, channels retained per user request)';
+                summary{end+1} = '   (Multi-method detection: kurtosis, probability, spectrum, correlation)';
+                summary{end+1} = '   (Thresholds: kurt=5, prob=5, spec=5, corr=0.4)';
             else
-                summary{end+1} = '✓ All channels good (kurtosis threshold: 7)';
+                summary{end+1} = 'All channels passed quality checks';
+                summary{end+1} = '   (Multi-method detection: kurtosis, probability, spectrum, correlation)';
             end
             summary{end+1} = '';
 

@@ -106,13 +106,11 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         function createUploadPanel(app)
             app.UploadPanel = uipanel(app.UIFigure);
 
-            % Position panel with right edge where user wants it, extend left
+            % Center panel with safe margins
             screenSize = get(0, 'ScreenSize');
-            panelWidth = 1400;
+            panelWidth = min(1400, screenSize(3) - 100);  % Ensure 50px margin on each side
             panelHeight = 600;
-            % Keep right edge at same position as before, extend left
-            rightEdge = (screenSize(3) + 1200) / 2;  % Previous right edge position
-            panelX = rightEdge - panelWidth;
+            panelX = max(50, (screenSize(3) - panelWidth) / 2);  % Center, with minimum 50px from left
             panelY = (screenSize(4) - panelHeight) / 2;
             app.UploadPanel.Position = [panelX panelY panelWidth panelHeight];
             app.UploadPanel.BackgroundColor = [1 1 1];
@@ -121,7 +119,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Title
             app.TitleLabel = uilabel(app.UploadPanel);
             app.TitleLabel.Position = [200 500 600 50];
-            app.TitleLabel.Text = '🧠 Juan Analyzer';
+            app.TitleLabel.Text = 'Juan Analyzer';
             app.TitleLabel.FontSize = 36;
             app.TitleLabel.FontWeight = 'bold';
             app.TitleLabel.FontColor = [0.2 0.3 0.6];
@@ -138,7 +136,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Browse Button
             app.BrowseButton = uibutton(app.UploadPanel, 'push');
             app.BrowseButton.Position = [350 370 300 50];
-            app.BrowseButton.Text = '📁 Select EEG File';
+            app.BrowseButton.Text = 'Select EEG File';
             app.BrowseButton.FontSize = 18;
             app.BrowseButton.BackgroundColor = [0.3 0.5 0.8];
             app.BrowseButton.FontColor = [1 1 1];
@@ -155,7 +153,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Event Selection Button
             app.EventSelectionButton = uibutton(app.UploadPanel, 'push');
             app.EventSelectionButton.Position = [350 240 300 50];
-            app.EventSelectionButton.Text = '📋 Select Events';
+            app.EventSelectionButton.Text = 'Select Events';
             app.EventSelectionButton.FontSize = 18;
             app.EventSelectionButton.BackgroundColor = [0.5 0.4 0.7];
             app.EventSelectionButton.FontColor = [1 1 1];
@@ -173,7 +171,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Start Button
             app.StartButton = uibutton(app.UploadPanel, 'push');
             app.StartButton.Position = [350 100 300 50];
-            app.StartButton.Text = '▶ Start Analysis';
+            app.StartButton.Text = 'Start Analysis';
             app.StartButton.FontSize = 18;
             app.StartButton.BackgroundColor = [0.2 0.7 0.3];
             app.StartButton.FontColor = [1 1 1];
@@ -192,13 +190,11 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         function createProcessingPanel(app)
             app.ProcessingPanel = uipanel(app.UIFigure);
 
-            % Position panel with right edge where user wants it, extend left
+            % Center panel with safe margins
             screenSize = get(0, 'ScreenSize');
-            panelWidth = 1400;
+            panelWidth = min(1400, screenSize(3) - 100);  % Ensure 50px margin on each side
             panelHeight = 600;
-            % Keep right edge at same position as before, extend left
-            rightEdge = (screenSize(3) + 1200) / 2;  % Previous right edge position
-            panelX = rightEdge - panelWidth;
+            panelX = max(50, (screenSize(3) - panelWidth) / 2);  % Center, with minimum 50px from left
             panelY = (screenSize(4) - panelHeight) / 2;
             app.ProcessingPanel.Position = [panelX panelY panelWidth panelHeight];
             app.ProcessingPanel.BackgroundColor = [1 1 1];
@@ -208,7 +204,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Processing label
             app.ProcessingLabel = uilabel(app.ProcessingPanel);
             app.ProcessingLabel.Position = [300 450 400 40];
-            app.ProcessingLabel.Text = '⚙️ Processing EEG Data...';
+            app.ProcessingLabel.Text = 'Processing EEG Data...';
             app.ProcessingLabel.FontSize = 24;
             app.ProcessingLabel.FontWeight = 'bold';
             app.ProcessingLabel.FontColor = [0.2 0.3 0.6];
@@ -247,13 +243,11 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         function createResultsPanel(app)
             app.ResultsPanel = uipanel(app.UIFigure);
 
-            % Position panel with right edge where user wants it, extend left
+            % Center panel with safe margins
             screenSize = get(0, 'ScreenSize');
-            panelWidth = 1500;
+            panelWidth = min(1500, screenSize(3) - 100);  % Ensure 50px margin on each side
             panelHeight = 700;
-            % Keep right edge at same position as before, extend left
-            rightEdge = (screenSize(3) + 1300) / 2;  % Previous right edge position
-            panelX = rightEdge - panelWidth;
+            panelX = max(50, (screenSize(3) - panelWidth) / 2);  % Center, with minimum 50px from left
             panelY = (screenSize(4) - panelHeight) / 2;
             app.ResultsPanel.Position = [panelX panelY panelWidth panelHeight];
             app.ResultsPanel.BackgroundColor = [1 1 1];
@@ -263,7 +257,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Title
             titleLabel = uilabel(app.ResultsPanel);
             titleLabel.Position = [300 650 500 40];
-            titleLabel.Text = '✓ Analysis Complete';
+            titleLabel.Text = 'Analysis Complete';
             titleLabel.FontSize = 28;
             titleLabel.FontWeight = 'bold';
             titleLabel.FontColor = [0.2 0.6 0.3];
@@ -275,7 +269,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             % ERP Tab
             app.ERPTab = uitab(app.ResultsTabGroup);
-            app.ERPTab.Title = '📊 ERP Components';
+            app.ERPTab.Title = 'ERP Components';
 
             % Event selection listbox
             eventLabel = uilabel(app.ERPTab);
@@ -324,7 +318,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             % Topographic Maps Tab
             app.TopoTab = uitab(app.ResultsTabGroup);
-            app.TopoTab.Title = '🗺️ Topographic Maps';
+            app.TopoTab.Title = 'Topographic Maps';
 
             % Event selection listbox for topomaps
             topoEventLabel = uilabel(app.TopoTab);
@@ -380,7 +374,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             % Frequency Tab
             app.FreqTab = uitab(app.ResultsTabGroup);
-            app.FreqTab.Title = '📈 Frequency Analysis';
+            app.FreqTab.Title = 'Frequency Analysis';
 
             app.FreqAxes1 = uiaxes(app.FreqTab);
             app.FreqAxes1.Position = [20 20 460 420];
@@ -390,7 +384,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             % Summary Tab
             app.SummaryTab = uitab(app.ResultsTabGroup);
-            app.SummaryTab.Title = '📋 Summary';
+            app.SummaryTab.Title = 'Summary';
 
             app.SummaryTextArea = uitextarea(app.SummaryTab);
             app.SummaryTextArea.Position = [20 20 960 420];
@@ -401,7 +395,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Buttons
             app.NewAnalysisButton = uibutton(app.ResultsPanel, 'push');
             app.NewAnalysisButton.Position = [200 80 250 50];
-            app.NewAnalysisButton.Text = '🔄 New Analysis';
+            app.NewAnalysisButton.Text = 'New Analysis';
             app.NewAnalysisButton.FontSize = 16;
             app.NewAnalysisButton.BackgroundColor = [0.3 0.5 0.8];
             app.NewAnalysisButton.FontColor = [1 1 1];
@@ -409,7 +403,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             app.ExportButton = uibutton(app.ResultsPanel, 'push');
             app.ExportButton.Position = [650 80 250 50];
-            app.ExportButton.Text = '💾 Export Results';
+            app.ExportButton.Text = 'Export Results';
             app.ExportButton.FontSize = 16;
             app.ExportButton.BackgroundColor = [0.2 0.7 0.3];
             app.ExportButton.FontColor = [1 1 1];
@@ -469,7 +463,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                     EEG = pop_loadset(app.EEGFile);
                 end
                 app.EEG = EEG;
-                app.FileInfoLabel.Text = sprintf('✓ %s | %d channels | %d events | %.1f sec', ...
+                app.FileInfoLabel.Text = sprintf('%s | %d channels | %d events | %.1f sec', ...
                     file, EEG.nbchan, length(EEG.event), EEG.xmax);
                 app.FileInfoLabel.FontColor = [0.2 0.6 0.3];
                 app.EventSelectionButton.Enable = 'on';
@@ -557,7 +551,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 'ButtonPushedFcn', @(btn,event) set(fieldListbox, 'Value', []));
 
             nextBtn = uibutton(d1, 'Position', [500 30 100 50], ...
-                'Text', 'Next →', ...
+                'Text', 'Next', ...
                 'FontSize', 14, ...
                 'BackgroundColor', [0.3 0.5 0.8], ...
                 'FontColor', [1 1 1], ...
@@ -638,7 +632,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                     'ButtonPushedFcn', @(btn,event) set(eventListbox, 'Value', []));
 
                 backBtn = uibutton(d2, 'Position', [260 30 100 50], ...
-                    'Text', '← Back', ...
+                    'Text', 'Back', ...
                     'ButtonPushedFcn', @(btn,event) goBack());
 
                 okBtn = uibutton(d2, 'Position', [500 30 100 50], ...
@@ -666,7 +660,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
                     app.SelectedEvents = uniqueEvents(selectedEventIdx);
                     app.SelectedFields = selectedFields;  % Store the grouping fields!
-                    app.EventSelectionLabel.Text = sprintf('✓ %d events from %d fields', length(app.SelectedEvents), length(selectedFields));
+                    app.EventSelectionLabel.Text = sprintf('%d events from %d fields', length(app.SelectedEvents), length(selectedFields));
                     app.EventSelectionLabel.FontColor = [0.2 0.6 0.3];
                     app.StartButton.Enable = 'on';
                     close(d2);
@@ -732,16 +726,22 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Stage 3: Artifact Detection
             updateProgress(app, 3, 'Detecting Artifacts...');
 
-            % Bad channel detection (identify but DON'T remove - user request)
+            % Multi-method bad channel detection (identify but DON'T remove)
             badChans = [];
             badChanLabels = {};
+            badChanReasons = {};
             try
-                % Run pop_rejchan to identify bad channels
-                EEG_temp = pop_rejchan(EEG, 'elec', 1:EEG.nbchan, 'threshold', 7, 'norm', 'on', 'measure', 'kurt');
+                % Method 1-3: Kurtosis, Probability, Spectrum
+                % Kurtosis: catches spiky/artifactual channels
+                % Probability: catches statistically abnormal activity
+                % Spectrum: catches noisy channels via frequency analysis
+                EEG_temp = pop_rejchan(EEG, 'elec', 1:EEG.nbchan, ...
+                    'threshold', [5 5 5], ...
+                    'norm', 'on', ...
+                    'measure', 'kurt', 'prob', 'spec');
 
-                % Identify which channels would be removed
+                % Identify which channels were flagged
                 if EEG_temp.nbchan < EEG.nbchan
-                    % Find removed channels by comparing channel sets
                     originalChans = 1:EEG.nbchan;
                     if isfield(EEG, 'chanlocs') && ~isempty(EEG.chanlocs)
                         originalLabels = {EEG.chanlocs.labels};
@@ -752,8 +752,47 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                         badChans = setdiff(originalChans, 1:EEG_temp.nbchan);
                     end
                 end
+
+                % Method 4: Correlation with neighboring channels
+                % Catches channels uncorrelated with neighbors
+                if isfield(EEG, 'chanlocs') && length(EEG.chanlocs) > 1
+                    correlationThreshold = 0.4;
+                    for i = 1:EEG.nbchan
+                        % Calculate correlation with all other channels
+                        chanData = EEG.data(i, :);
+                        corrVals = zeros(EEG.nbchan - 1, 1);
+                        idx = 1;
+                        for j = 1:EEG.nbchan
+                            if i ~= j
+                                corrVals(idx) = corr(chanData', EEG.data(j, :)');
+                                idx = idx + 1;
+                            end
+                        end
+
+                        % If mean correlation is too low, mark as bad
+                        meanCorr = mean(abs(corrVals));
+                        if meanCorr < correlationThreshold
+                            if ~ismember(i, badChans)
+                                badChans(end+1) = i;
+                                if isfield(EEG, 'chanlocs') && ~isempty(EEG.chanlocs)
+                                    badChanLabels{end+1} = EEG.chanlocs(i).labels;
+                                end
+                            end
+                        end
+                    end
+                end
+
+                % Sort bad channels
+                if ~isempty(badChans)
+                    [badChans, sortIdx] = sort(badChans);
+                    if ~isempty(badChanLabels)
+                        badChanLabels = badChanLabels(sortIdx);
+                    end
+                end
+
                 % DON'T apply the removal - keep EEG unchanged, just record bad channels
-            catch
+            catch ME
+                fprintf('Warning: Bad channel detection encountered error: %s\n', ME.message);
                 % If detection fails, continue without bad channel info
             end
 
@@ -791,7 +830,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             end
 
             % Stage 5: Using Manual Event Selection
-            updateProgress(app, 5, '📋 Using Manually Selected Events...');
+            updateProgress(app, 5, 'Using Manually Selected Events...');
             selectedEvents = app.SelectedEvents;
 
             % Detect structure for epoching
@@ -915,10 +954,10 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
             % Warn if "all" channels selected (will produce flat line due to spatial cancellation)
             if strcmp(roiSelection, 'all')
-                fprintf('\n⚠️ WARNING: "All Channels" averages all 129 channels together.\n');
-                fprintf('   Positive and negative scalp regions cancel out → FLAT LINE\n');
+                fprintf('\nWARNING: "All Channels" averages all 129 channels together.\n');
+                fprintf('   Positive and negative scalp regions cancel out -> FLAT LINE\n');
                 fprintf('   This is mathematically correct but scientifically useless!\n');
-                fprintf('   → Use ROI selections (Central, Frontal, etc.) for meaningful ERPs\n\n');
+                fprintf('   -> Use ROI selections (Central, Frontal, etc.) for meaningful ERPs\n\n');
             end
 
             % Display info about ROI
@@ -1101,7 +1140,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             summary{end+1} = 'CHANNEL QUALITY:';
             summary{end+1} = '----------------------------------------';
             if ~isempty(results.badChannels)
-                summary{end+1} = sprintf('⚠ WARNING: %d bad channel(s) detected (KEPT in analysis):', length(results.badChannels));
+                summary{end+1} = sprintf('WARNING: %d bad channel(s) detected (KEPT in analysis):', length(results.badChannels));
                 if isfield(results, 'badChannelLabels') && ~isempty(results.badChannelLabels)
                     for i = 1:length(results.badChannelLabels)
                         summary{end+1} = sprintf('   - %s', results.badChannelLabels{i});
@@ -1111,9 +1150,11 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                         summary{end+1} = sprintf('   - Channel %d', results.badChannels(i));
                     end
                 end
-                summary{end+1} = '   (Detected using kurtosis > 7, channels retained per user request)';
+                summary{end+1} = '   (Multi-method detection: kurtosis, probability, spectrum, correlation)';
+                summary{end+1} = '   (Thresholds: kurt=5, prob=5, spec=5, corr=0.4)';
             else
-                summary{end+1} = '✓ All channels good (kurtosis threshold: 7)';
+                summary{end+1} = 'All channels passed quality checks';
+                summary{end+1} = '   (Multi-method detection: kurtosis, probability, spectrum, correlation)';
             end
             summary{end+1} = '';
 
@@ -1343,7 +1384,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 dataCorr = corr(data1, data2);
                 fprintf('[TOPO] Data correlation between first two events: %.4f (1.0 = identical)\n', dataCorr);
                 if dataCorr > 0.999
-                    fprintf('[TOPO] ⚠️ WARNING: Data appears identical between conditions!\n');
+                    fprintf('[TOPO] WARNING: Data appears identical between conditions!\n');
                 end
             end
             nMaps = length(selectedIndices);
@@ -1391,10 +1432,10 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
                 % Check for problematic data
                 if std(topoData) < 0.01
-                    fprintf('[TOPO Debug] ⚠️ WARNING: Very low variance (std=%.4f) - map may be flat!\n', std(topoData));
+                    fprintf('[TOPO Debug] WARNING: Very low variance (std=%.4f) - map may be flat!\n', std(topoData));
                 end
                 if all(abs(topoData) < 0.01)
-                    fprintf('[TOPO Debug] ⚠️ WARNING: All values near zero - data may be invalid!\n');
+                    fprintf('[TOPO Debug] WARNING: All values near zero - data may be invalid!\n');
                 end
 
                 % Plot topomap using temporary figure (topoplot doesn't work with uiaxes)
@@ -1907,7 +1948,7 @@ function freqAnalysis = analyzeFrequencyBandsGUI(EEG, epochedData, timeWindow)
             stimulusIdx = timeVector >= stimulusWindow(1) & timeVector < stimulusWindow(2);
 
             if sum(baselineIdx) < 10 || sum(stimulusIdx) < 10
-                fprintf('    ⚠ Insufficient samples in time windows, skipping\n');
+                fprintf('    WARNING: Insufficient samples in time windows, skipping\n');
                 continue;
             end
 
@@ -1978,7 +2019,7 @@ function freqAnalysis = analyzeFrequencyBandsGUI(EEG, epochedData, timeWindow)
             end
         end
 
-        fprintf('  ✓ Frequency analysis complete\n');
+        fprintf('  Frequency analysis complete\n');
 
     catch ME
         warning('Frequency analysis failed: %s', ME.message);
