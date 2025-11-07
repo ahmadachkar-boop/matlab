@@ -453,92 +453,199 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         end
 
         function selectEventsManually(app)
-            % Parse unique event types
             EEG = app.EEG;
             structure = detectEventStructure(EEG);
 
-            % Get unique event values
-            allEvents = {};
-            for i = 1:length(EEG.event)
-                if isfield(EEG.event(i), 'type')
-                    eventType = char(EEG.event(i).type);
-                    condLabel = parseEventUniversal(EEG.event(i), structure, struct('groupingFields', {}), {});
-                    if ~isempty(condLabel) && ~strcmp(condLabel, 'TRCP')
-                        allEvents{end+1} = condLabel;
+            % STEP 1: Discover available fields
+            fprintf('Discovering event fields...\n');
+            allFields = {};
+            fieldStats = struct();
+
+            for i = 1:min(100, length(EEG.event))
+                evt = EEG.event(i);
+                fnames = fieldnames(evt);
+                for f = 1:length(fnames)
+                    fname = fnames{f};
+                    % Skip basic EEGLAB fields
+                    if ~ismember(fname, {'type', 'latency', 'duration', 'urevent', 'epoch'})
+                        if ~isfield(fieldStats, fname)
+                            fieldStats.(fname) = {};
+                        end
+                        fval = evt.(fname);
+                        if ischar(fval) || isstring(fval)
+                            fieldStats.(fname){end+1} = char(fval);
+                        end
                     end
                 end
             end
 
-            uniqueEvents = unique(allEvents);
-
-            if isempty(uniqueEvents)
-                uialert(app.UIFigure, 'No parseable events found in file.', 'No Events');
+            availableFields = fieldnames(fieldStats);
+            if isempty(availableFields)
+                uialert(app.UIFigure, 'No event fields found for grouping.', 'No Fields');
                 return;
             end
 
-            % Count trials per event
-            eventCounts = zeros(length(uniqueEvents), 1);
-            for i = 1:length(uniqueEvents)
-                eventCounts(i) = sum(strcmp(allEvents, uniqueEvents{i}));
+            % Calculate unique values per field
+            fieldInfo = cell(length(availableFields), 1);
+            for i = 1:length(availableFields)
+                fname = availableFields{i};
+                uniqueVals = unique(fieldStats.(fname));
+                fieldInfo{i} = sprintf('%s (%d unique values)', fname, length(uniqueVals));
             end
 
-            % Create selection dialog
-            d = uifigure('Name', 'Select Events', 'Position', [100 100 600 500]);
+            % STEP 1 DIALOG: Select grouping fields
+            d1 = uifigure('Name', 'Step 1: Select Grouping Fields', 'Position', [100 100 700 550]);
 
-            titleLabel = uilabel(d, 'Position', [50 450 500 30], ...
-                'Text', 'Select events to analyze:', ...
+            titleLabel = uilabel(d1, 'Position', [50 500 600 30], ...
+                'Text', 'Step 1: Select fields to group events by', ...
                 'FontSize', 16, 'FontWeight', 'bold');
 
-            infoLabel = uilabel(d, 'Position', [50 420 500 20], ...
-                'Text', sprintf('Found %d unique event types', length(uniqueEvents)), ...
-                'FontSize', 12, 'FontColor', [0.5 0.5 0.5]);
+            infoLabel = uilabel(d1, 'Position', [50 470 600 20], ...
+                'Text', 'Choose which event fields define your conditions (e.g., mffkey_Cond, mffkey_Code)', ...
+                'FontSize', 11, 'FontColor', [0.5 0.5 0.5]);
 
-            % Create list with counts
-            displayList = cell(length(uniqueEvents), 1);
-            for i = 1:length(uniqueEvents)
-                displayList{i} = sprintf('%s (%d trials)', uniqueEvents{i}, eventCounts(i));
+            fieldListbox = uilistbox(d1, 'Position', [50 150 600 300], ...
+                'Items', fieldInfo, ...
+                'ItemsData', 1:length(availableFields), ...
+                'Multiselect', 'on');
+
+            % Auto-select mffkey fields by default
+            defaultSelection = [];
+            for i = 1:length(availableFields)
+                if startsWith(lower(availableFields{i}), 'mffkey')
+                    defaultSelection(end+1) = i;
+                end
+            end
+            if ~isempty(defaultSelection)
+                fieldListbox.Value = defaultSelection;
             end
 
-            listbox = uilistbox(d, 'Position', [50 120 500 290], ...
-                'Items', displayList, ...
-                'ItemsData', 1:length(uniqueEvents), ...
-                'Multiselect', 'on', ...
-                'Value', 1:length(uniqueEvents));  % All selected by default
-
-            selectAllBtn = uibutton(d, 'Position', [50 80 100 30], ...
+            selectAllFieldsBtn = uibutton(d1, 'Position', [50 110 120 30], ...
                 'Text', 'Select All', ...
-                'ButtonPushedFcn', @(btn,event) set(listbox, 'Value', 1:length(uniqueEvents)));
+                'ButtonPushedFcn', @(btn,event) set(fieldListbox, 'Value', 1:length(availableFields)));
 
-            clearAllBtn = uibutton(d, 'Position', [160 80 100 30], ...
+            clearAllFieldsBtn = uibutton(d1, 'Position', [180 110 120 30], ...
                 'Text', 'Clear All', ...
-                'ButtonPushedFcn', @(btn,event) set(listbox, 'Value', []));
+                'ButtonPushedFcn', @(btn,event) set(fieldListbox, 'Value', []));
 
-            okBtn = uibutton(d, 'Position', [400 30 80 40], ...
-                'Text', 'OK', ...
+            nextBtn = uibutton(d1, 'Position', [500 30 100 50], ...
+                'Text', 'Next →', ...
                 'FontSize', 14, ...
-                'BackgroundColor', [0.2 0.7 0.3], ...
+                'BackgroundColor', [0.3 0.5 0.8], ...
                 'FontColor', [1 1 1], ...
-                'ButtonPushedFcn', @(btn,event) confirmSelection());
+                'ButtonPushedFcn', @(btn,event) proceedToStep2());
 
-            cancelBtn = uibutton(d, 'Position', [300 30 80 40], ...
+            cancelBtn = uibutton(d1, 'Position', [380 30 100 50], ...
                 'Text', 'Cancel', ...
-                'ButtonPushedFcn', @(btn,event) close(d));
+                'ButtonPushedFcn', @(btn,event) close(d1));
 
-            function confirmSelection()
-                selectedIdx = listbox.Value;
-                if isempty(selectedIdx)
-                    uialert(d, 'Please select at least one event type.', 'No Selection');
+            function proceedToStep2()
+                selectedFieldIdx = fieldListbox.Value;
+                if isempty(selectedFieldIdx)
+                    uialert(d1, 'Please select at least one field.', 'No Fields Selected');
                     return;
                 end
 
-                app.SelectedEvents = uniqueEvents(selectedIdx);
-                app.EventSelectionLabel.Text = sprintf('✓ %d event types selected', length(app.SelectedEvents));
-                app.EventSelectionLabel.FontColor = [0.2 0.6 0.3];
-                app.StartButton.Enable = 'on';
-                close(d);
+                selectedFields = availableFields(selectedFieldIdx);
+                close(d1);
+
+                % STEP 2: Parse events using selected fields
+                discovery = struct();
+                discovery.groupingFields = selectedFields;
+                discovery.practicePatterns = {};
+
+                allEvents = {};
+                for i = 1:length(EEG.event)
+                    if isfield(EEG.event(i), 'type')
+                        condLabel = parseEventUniversal(EEG.event(i), structure, discovery, selectedFields);
+                        if ~isempty(condLabel)
+                            allEvents{end+1} = condLabel;
+                        end
+                    end
+                end
+
+                uniqueEvents = unique(allEvents);
+
+                if isempty(uniqueEvents)
+                    uialert(app.UIFigure, 'No events found with selected fields.', 'No Events');
+                    return;
+                end
+
+                % Count trials per event
+                eventCounts = zeros(length(uniqueEvents), 1);
+                for i = 1:length(uniqueEvents)
+                    eventCounts(i) = sum(strcmp(allEvents, uniqueEvents{i}));
+                end
+
+                % STEP 2 DIALOG: Select events
+                d2 = uifigure('Name', 'Step 2: Select Events', 'Position', [100 100 700 600]);
+
+                titleLabel2 = uilabel(d2, 'Position', [50 550 600 30], ...
+                    'Text', 'Step 2: Select which events to analyze', ...
+                    'FontSize', 16, 'FontWeight', 'bold');
+
+                infoLabel2 = uilabel(d2, 'Position', [50 520 600 20], ...
+                    'Text', sprintf('Grouped by: %s | Found %d event types', strjoin(selectedFields, ', '), length(uniqueEvents)), ...
+                    'FontSize', 11, 'FontColor', [0.5 0.5 0.5]);
+
+                % Create list with counts
+                displayList = cell(length(uniqueEvents), 1);
+                for i = 1:length(uniqueEvents)
+                    displayList{i} = sprintf('%s (%d trials)', uniqueEvents{i}, eventCounts(i));
+                end
+
+                eventListbox = uilistbox(d2, 'Position', [50 150 600 350], ...
+                    'Items', displayList, ...
+                    'ItemsData', 1:length(uniqueEvents), ...
+                    'Multiselect', 'on', ...
+                    'Value', 1:length(uniqueEvents));  % All selected by default
+
+                selectAllEventsBtn = uibutton(d2, 'Position', [50 110 120 30], ...
+                    'Text', 'Select All', ...
+                    'ButtonPushedFcn', @(btn,event) set(eventListbox, 'Value', 1:length(uniqueEvents)));
+
+                clearAllEventsBtn = uibutton(d2, 'Position', [180 110 120 30], ...
+                    'Text', 'Clear All', ...
+                    'ButtonPushedFcn', @(btn,event) set(eventListbox, 'Value', []));
+
+                backBtn = uibutton(d2, 'Position', [260 30 100 50], ...
+                    'Text', '← Back', ...
+                    'ButtonPushedFcn', @(btn,event) goBack());
+
+                okBtn = uibutton(d2, 'Position', [500 30 100 50], ...
+                    'Text', 'OK', ...
+                    'FontSize', 14, ...
+                    'BackgroundColor', [0.2 0.7 0.3], ...
+                    'FontColor', [1 1 1], ...
+                    'ButtonPushedFcn', @(btn,event) confirmSelection());
+
+                cancelBtn2 = uibutton(d2, 'Position', [380 30 100 50], ...
+                    'Text', 'Cancel', ...
+                    'ButtonPushedFcn', @(btn,event) close(d2));
+
+                function goBack()
+                    close(d2);
+                    selectEventsManually(app);  % Restart from step 1
+                end
+
+                function confirmSelection()
+                    selectedEventIdx = eventListbox.Value;
+                    if isempty(selectedEventIdx)
+                        uialert(d2, 'Please select at least one event type.', 'No Selection');
+                        return;
+                    end
+
+                    app.SelectedEvents = uniqueEvents(selectedEventIdx);
+                    app.EventSelectionLabel.Text = sprintf('✓ %d events from %d fields', length(app.SelectedEvents), length(selectedFields));
+                    app.EventSelectionLabel.FontColor = [0.2 0.6 0.3];
+                    app.StartButton.Enable = 'on';
+                    close(d2);
+                end
+
+                uiwait(d2);
             end
 
-            uiwait(d);
+            uiwait(d1);
         end
 
         function startAnalysis(app)
