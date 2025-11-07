@@ -553,6 +553,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 discovery = struct();
                 discovery.groupingFields = selectedFields;
                 discovery.practicePatterns = {};
+                discovery.valueMappings = struct();  % Required by parseEventUniversal
 
                 allEvents = {};
                 for i = 1:length(EEG.event)
@@ -769,6 +770,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             discovery = struct();
             discovery.groupingFields = {};
             discovery.practicePatterns = {};
+            discovery.valueMappings = struct();
 
             fprintf('Manual event selection: %d event types\n', length(selectedEvents));
             for i = 1:length(selectedEvents)
