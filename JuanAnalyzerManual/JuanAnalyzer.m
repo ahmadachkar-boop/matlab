@@ -106,12 +106,12 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         function createUploadPanel(app)
             app.UploadPanel = uipanel(app.UIFigure);
 
-            % Center the panel in the window
-            figPos = app.UIFigure.Position;
+            % Center the panel in the window (use screen size since figure is maximized)
+            screenSize = get(0, 'ScreenSize');
             panelWidth = 1000;
             panelHeight = 600;
-            panelX = (figPos(3) - panelWidth) / 2;
-            panelY = (figPos(4) - panelHeight) / 2;
+            panelX = (screenSize(3) - panelWidth) / 2;
+            panelY = (screenSize(4) - panelHeight) / 2;
             app.UploadPanel.Position = [panelX panelY panelWidth panelHeight];
             app.UploadPanel.BackgroundColor = [1 1 1];
             app.UploadPanel.BorderType = 'none';
@@ -190,12 +190,12 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         function createProcessingPanel(app)
             app.ProcessingPanel = uipanel(app.UIFigure);
 
-            % Center the panel in the window
-            figPos = app.UIFigure.Position;
+            % Center the panel in the window (use screen size since figure is maximized)
+            screenSize = get(0, 'ScreenSize');
             panelWidth = 1000;
             panelHeight = 600;
-            panelX = (figPos(3) - panelWidth) / 2;
-            panelY = (figPos(4) - panelHeight) / 2;
+            panelX = (screenSize(3) - panelWidth) / 2;
+            panelY = (screenSize(4) - panelHeight) / 2;
             app.ProcessingPanel.Position = [panelX panelY panelWidth panelHeight];
             app.ProcessingPanel.BackgroundColor = [1 1 1];
             app.ProcessingPanel.BorderType = 'none';
@@ -243,12 +243,12 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         function createResultsPanel(app)
             app.ResultsPanel = uipanel(app.UIFigure);
 
-            % Center the panel in the window
-            figPos = app.UIFigure.Position;
+            % Center the panel in the window (use screen size since figure is maximized)
+            screenSize = get(0, 'ScreenSize');
             panelWidth = 1100;
             panelHeight = 700;
-            panelX = (figPos(3) - panelWidth) / 2;
-            panelY = (figPos(4) - panelHeight) / 2;
+            panelX = (screenSize(3) - panelWidth) / 2;
+            panelY = (screenSize(4) - panelHeight) / 2;
             app.ResultsPanel.Position = [panelX panelY panelWidth panelHeight];
             app.ResultsPanel.BackgroundColor = [1 1 1];
             app.ResultsPanel.BorderType = 'none';
