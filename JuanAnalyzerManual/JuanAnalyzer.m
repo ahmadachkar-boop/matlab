@@ -106,11 +106,13 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         function createUploadPanel(app)
             app.UploadPanel = uipanel(app.UIFigure);
 
-            % Center the panel in the window (use screen size since figure is maximized)
+            % Position panel with right edge where user wants it, extend left
             screenSize = get(0, 'ScreenSize');
-            panelWidth = 1200;
+            panelWidth = 1400;
             panelHeight = 600;
-            panelX = (screenSize(3) - panelWidth) / 2;
+            % Keep right edge at same position as before, extend left
+            rightEdge = (screenSize(3) + 1200) / 2;  % Previous right edge position
+            panelX = rightEdge - panelWidth;
             panelY = (screenSize(4) - panelHeight) / 2;
             app.UploadPanel.Position = [panelX panelY panelWidth panelHeight];
             app.UploadPanel.BackgroundColor = [1 1 1];
@@ -190,11 +192,13 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         function createProcessingPanel(app)
             app.ProcessingPanel = uipanel(app.UIFigure);
 
-            % Center the panel in the window (use screen size since figure is maximized)
+            % Position panel with right edge where user wants it, extend left
             screenSize = get(0, 'ScreenSize');
-            panelWidth = 1200;
+            panelWidth = 1400;
             panelHeight = 600;
-            panelX = (screenSize(3) - panelWidth) / 2;
+            % Keep right edge at same position as before, extend left
+            rightEdge = (screenSize(3) + 1200) / 2;  % Previous right edge position
+            panelX = rightEdge - panelWidth;
             panelY = (screenSize(4) - panelHeight) / 2;
             app.ProcessingPanel.Position = [panelX panelY panelWidth panelHeight];
             app.ProcessingPanel.BackgroundColor = [1 1 1];
@@ -243,11 +247,13 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         function createResultsPanel(app)
             app.ResultsPanel = uipanel(app.UIFigure);
 
-            % Center the panel in the window (use screen size since figure is maximized)
+            % Position panel with right edge where user wants it, extend left
             screenSize = get(0, 'ScreenSize');
-            panelWidth = 1300;
+            panelWidth = 1500;
             panelHeight = 700;
-            panelX = (screenSize(3) - panelWidth) / 2;
+            % Keep right edge at same position as before, extend left
+            rightEdge = (screenSize(3) + 1300) / 2;  % Previous right edge position
+            panelX = rightEdge - panelWidth;
             panelY = (screenSize(4) - panelHeight) / 2;
             app.ResultsPanel.Position = [panelX panelY panelWidth panelHeight];
             app.ResultsPanel.BackgroundColor = [1 1 1];
