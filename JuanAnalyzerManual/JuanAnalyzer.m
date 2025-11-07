@@ -63,6 +63,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         EEG                     struct
         Results                 struct
         SelectedEvents          cell = {}
+        SelectedFields          cell = {}
         CurrentStage            double = 0
         TotalStages             double = 8
     end
@@ -658,6 +659,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                     end
 
                     app.SelectedEvents = uniqueEvents(selectedEventIdx);
+                    app.SelectedFields = selectedFields;  % Store the grouping fields!
                     app.EventSelectionLabel.Text = sprintf('✓ %d events from %d fields', length(app.SelectedEvents), length(selectedFields));
                     app.EventSelectionLabel.FontColor = [0.2 0.6 0.3];
                     app.StartButton.Enable = 'on';
@@ -789,7 +791,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Detect structure for epoching
             structure = detectEventStructure(EEG);
             discovery = struct();
-            discovery.groupingFields = {};
+            discovery.groupingFields = app.SelectedFields;  % Use the selected fields from Step 1
             discovery.practicePatterns = {};
             discovery.valueMappings = struct();
 
@@ -802,7 +804,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             updateProgress(app, 6, 'Extracting Epochs and Computing ERPs...');
             timeWindow = [-0.2, 0.8];
             epochedData = epochEEGByEventsUniversal(EEG, selectedEvents, timeWindow, ...
-                structure, discovery, {});
+                structure, discovery, app.SelectedFields);
 
             % Stage 7: ERP Component Analysis
             updateProgress(app, 7, 'Analyzing ERP Components (N250, N400, P600)...');
