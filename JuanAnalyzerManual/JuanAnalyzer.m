@@ -1,8 +1,8 @@
 classdef JuanAnalyzer < matlab.apps.AppBase
-    % JUANANALYZER - AI-Powered ERP Analysis GUI
+    % JUANANALYZER - Manual ERP Analysis GUI
     %
-    % Automated ERP analysis with:
-    %   - AI-only event detection
+    % ERP analysis with manual event selection:
+    %   - Manual event selection
     %   - N400, N250, P600 component analysis
     %   - Frequency band analysis
     %   - Bad channel warnings (keeps channels)
@@ -20,9 +20,8 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         SubtitleLabel           matlab.ui.control.Label
         BrowseButton            matlab.ui.control.Button
         FileInfoLabel           matlab.ui.control.Label
-        APIKeyLabel             matlab.ui.control.Label
-        APIKeyField             matlab.ui.control.EditField
-        ProviderDropdown        matlab.ui.control.DropDown
+        EventSelectionButton    matlab.ui.control.Button
+        EventSelectionLabel     matlab.ui.control.Label
         StartButton             matlab.ui.control.Button
 
         % Processing Screen
@@ -63,6 +62,8 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         EEGFile                 char
         EEG                     struct
         Results                 struct
+        SelectedEvents          cell = {}
+        SelectedFields          cell = {}
         CurrentStage            double = 0
         TotalStages             double = 8
     end
@@ -104,7 +105,14 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
         function createUploadPanel(app)
             app.UploadPanel = uipanel(app.UIFigure);
-            app.UploadPanel.Position = [100 100 1000 600];
+
+            % Center panel with safe margins
+            screenSize = get(0, 'ScreenSize');
+            panelWidth = min(1400, screenSize(3) - 100);  % Ensure 50px margin on each side
+            panelHeight = 600;
+            panelX = max(50, (screenSize(3) - panelWidth) / 2);  % Center, with minimum 50px from left
+            panelY = (screenSize(4) - panelHeight) / 2;
+            app.UploadPanel.Position = [panelX panelY panelWidth panelHeight];
             app.UploadPanel.BackgroundColor = [1 1 1];
             app.UploadPanel.BorderType = 'none';
 
@@ -120,7 +128,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Subtitle
             app.SubtitleLabel = uilabel(app.UploadPanel);
             app.SubtitleLabel.Position = [150 460 700 30];
-            app.SubtitleLabel.Text = 'AI-Powered ERP Analysis | N400, N250, P600 Components';
+            app.SubtitleLabel.Text = 'Manual Event Selection | N400, N250, P600 Components';
             app.SubtitleLabel.FontSize = 14;
             app.SubtitleLabel.FontColor = [0.4 0.5 0.6];
             app.SubtitleLabel.HorizontalAlignment = 'center';
@@ -142,28 +150,23 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             app.FileInfoLabel.FontColor = [0.5 0.5 0.5];
             app.FileInfoLabel.HorizontalAlignment = 'center';
 
-            % API Key section
-            apiLabel = uilabel(app.UploadPanel);
-            apiLabel.Position = [200 250 200 20];
-            apiLabel.Text = '🤖 AI Provider:';
-            apiLabel.FontSize = 12;
-            apiLabel.FontWeight = 'bold';
+            % Event Selection Button
+            app.EventSelectionButton = uibutton(app.UploadPanel, 'push');
+            app.EventSelectionButton.Position = [350 240 300 50];
+            app.EventSelectionButton.Text = 'Select Events';
+            app.EventSelectionButton.FontSize = 18;
+            app.EventSelectionButton.BackgroundColor = [0.5 0.4 0.7];
+            app.EventSelectionButton.FontColor = [1 1 1];
+            app.EventSelectionButton.Enable = 'off';
+            app.EventSelectionButton.ButtonPushedFcn = @(btn,event) selectEventsManually(app);
 
-            app.ProviderDropdown = uidropdown(app.UploadPanel);
-            app.ProviderDropdown.Position = [300 245 150 30];
-            app.ProviderDropdown.Items = {'Claude (Anthropic)', 'OpenAI GPT-4'};
-            app.ProviderDropdown.ItemsData = {'claude', 'openai'};
-            app.ProviderDropdown.Value = 'claude';
-
-            app.APIKeyLabel = uilabel(app.UploadPanel);
-            app.APIKeyLabel.Position = [200 200 100 20];
-            app.APIKeyLabel.Text = '🔑 API Key:';
-            app.APIKeyLabel.FontSize = 12;
-            app.APIKeyLabel.FontWeight = 'bold';
-
-            app.APIKeyField = uieditfield(app.UploadPanel, 'text');
-            app.APIKeyField.Position = [300 195 400 30];
-            app.APIKeyField.Placeholder = 'Enter API key or set environment variable';
+            % Event Selection Label
+            app.EventSelectionLabel = uilabel(app.UploadPanel);
+            app.EventSelectionLabel.Position = [100 190 800 30];
+            app.EventSelectionLabel.Text = 'No events selected';
+            app.EventSelectionLabel.FontSize = 12;
+            app.EventSelectionLabel.FontColor = [0.5 0.5 0.5];
+            app.EventSelectionLabel.HorizontalAlignment = 'center';
 
             % Start Button
             app.StartButton = uibutton(app.UploadPanel, 'push');
@@ -178,7 +181,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             % Instructions
             instrLabel = uilabel(app.UploadPanel);
             instrLabel.Position = [100 40 800 40];
-            instrLabel.Text = sprintf('Supports: .mff, .set, .edf formats\nAutomatic AI-powered event detection • No configuration needed');
+            instrLabel.Text = sprintf('Supports: .mff, .set, .edf formats\nManual event selection • Step-by-step workflow');
             instrLabel.FontSize = 10;
             instrLabel.FontColor = [0.6 0.6 0.6];
             instrLabel.HorizontalAlignment = 'center';
@@ -186,7 +189,14 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
         function createProcessingPanel(app)
             app.ProcessingPanel = uipanel(app.UIFigure);
-            app.ProcessingPanel.Position = [100 100 1000 600];
+
+            % Center panel with safe margins
+            screenSize = get(0, 'ScreenSize');
+            panelWidth = min(1400, screenSize(3) - 100);  % Ensure 50px margin on each side
+            panelHeight = 600;
+            panelX = max(50, (screenSize(3) - panelWidth) / 2);  % Center, with minimum 50px from left
+            panelY = (screenSize(4) - panelHeight) / 2;
+            app.ProcessingPanel.Position = [panelX panelY panelWidth panelHeight];
             app.ProcessingPanel.BackgroundColor = [1 1 1];
             app.ProcessingPanel.BorderType = 'none';
             app.ProcessingPanel.Visible = 'off';
@@ -232,7 +242,14 @@ classdef JuanAnalyzer < matlab.apps.AppBase
 
         function createResultsPanel(app)
             app.ResultsPanel = uipanel(app.UIFigure);
-            app.ResultsPanel.Position = [50 50 1100 700];
+
+            % Center panel with safe margins
+            screenSize = get(0, 'ScreenSize');
+            panelWidth = min(1500, screenSize(3) - 100);  % Ensure 50px margin on each side
+            panelHeight = 700;
+            panelX = max(50, (screenSize(3) - panelWidth) / 2);  % Center, with minimum 50px from left
+            panelY = (screenSize(4) - panelHeight) / 2;
+            app.ResultsPanel.Position = [panelX panelY panelWidth panelHeight];
             app.ResultsPanel.BackgroundColor = [1 1 1];
             app.ResultsPanel.BorderType = 'none';
             app.ResultsPanel.Visible = 'off';
@@ -434,11 +451,11 @@ classdef JuanAnalyzer < matlab.apps.AppBase
             end
 
             app.EEGFile = fullfile(path, file);
-            app.FileInfoLabel.Text = sprintf('Selected: %s', file);
-            app.FileInfoLabel.FontColor = [0.2 0.6 0.3];
-            app.StartButton.Enable = 'on';
+            app.FileInfoLabel.Text = sprintf('Loading: %s...', file);
+            app.FileInfoLabel.FontColor = [0.5 0.5 0.5];
+            drawnow;
 
-            % Try to load file info
+            % Load file
             try
                 if endsWith(file, '.mff')
                     EEG = pop_mffimport(app.EEGFile, {});
@@ -448,35 +465,217 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 app.EEG = EEG;
                 app.FileInfoLabel.Text = sprintf('%s | %d channels | %d events | %.1f sec', ...
                     file, EEG.nbchan, length(EEG.event), EEG.xmax);
-            catch
-                % If preview fails, still allow analysis
+                app.FileInfoLabel.FontColor = [0.2 0.6 0.3];
+                app.EventSelectionButton.Enable = 'on';
+            catch ME
+                uialert(app.UIFigure, sprintf('Failed to load file: %s', ME.message), 'Load Error');
+                app.FileInfoLabel.Text = 'File load failed';
+                app.FileInfoLabel.FontColor = [0.8 0.2 0.2];
             end
         end
 
-        function startAnalysis(app)
-            % Validate API key
-            provider = app.ProviderDropdown.Value;
-            apiKey = strtrim(app.APIKeyField.Value);
+        function selectEventsManually(app)
+            EEG = app.EEG;
+            structure = detectEventStructure(EEG);
 
-            if ~isempty(apiKey)
-                if strcmp(provider, 'claude')
-                    setenv('ANTHROPIC_API_KEY', apiKey);
-                else
-                    setenv('OPENAI_API_KEY', apiKey);
+            % STEP 1: Discover available fields
+            fprintf('Discovering event fields...\n');
+            allFields = {};
+            fieldStats = struct();
+
+            for i = 1:min(100, length(EEG.event))
+                evt = EEG.event(i);
+                fnames = fieldnames(evt);
+                for f = 1:length(fnames)
+                    fname = fnames{f};
+                    % Skip basic EEGLAB fields
+                    if ~ismember(fname, {'type', 'latency', 'duration', 'urevent', 'epoch'})
+                        if ~isfield(fieldStats, fname)
+                            fieldStats.(fname) = {};
+                        end
+                        fval = evt.(fname);
+                        if ischar(fval) || isstring(fval)
+                            fieldStats.(fname){end+1} = char(fval);
+                        end
+                    end
                 end
             end
 
-            % Check if key is set
-            if strcmp(provider, 'claude')
-                key = getenv('ANTHROPIC_API_KEY');
-            else
-                key = getenv('OPENAI_API_KEY');
+            availableFields = fieldnames(fieldStats);
+            if isempty(availableFields)
+                uialert(app.UIFigure, 'No event fields found for grouping.', 'No Fields');
+                return;
             end
 
-            if isempty(key)
-                uialert(app.UIFigure, ...
-                    'Please enter an API key or set the environment variable.', ...
-                    'API Key Required');
+            % Calculate unique values per field
+            fieldInfo = cell(length(availableFields), 1);
+            for i = 1:length(availableFields)
+                fname = availableFields{i};
+                uniqueVals = unique(fieldStats.(fname));
+                fieldInfo{i} = sprintf('%s (%d unique values)', fname, length(uniqueVals));
+            end
+
+            % STEP 1 DIALOG: Select grouping fields
+            d1 = uifigure('Name', 'Step 1: Select Grouping Fields', 'Position', [100 100 700 550]);
+
+            titleLabel = uilabel(d1, 'Position', [50 500 600 30], ...
+                'Text', 'Step 1: Select fields to group events by', ...
+                'FontSize', 16, 'FontWeight', 'bold');
+
+            infoLabel = uilabel(d1, 'Position', [50 470 600 20], ...
+                'Text', 'Choose which event fields define your conditions (e.g., mffkey_Cond, mffkey_Code)', ...
+                'FontSize', 11, 'FontColor', [0.5 0.5 0.5]);
+
+            fieldListbox = uilistbox(d1, 'Position', [50 150 600 300], ...
+                'Items', fieldInfo, ...
+                'ItemsData', 1:length(availableFields), ...
+                'Multiselect', 'on');
+
+            % Auto-select mffkey fields by default
+            defaultSelection = [];
+            for i = 1:length(availableFields)
+                if startsWith(lower(availableFields{i}), 'mffkey')
+                    defaultSelection(end+1) = i;
+                end
+            end
+            if ~isempty(defaultSelection)
+                fieldListbox.Value = defaultSelection;
+            end
+
+            selectAllFieldsBtn = uibutton(d1, 'Position', [50 110 120 30], ...
+                'Text', 'Select All', ...
+                'ButtonPushedFcn', @(btn,event) set(fieldListbox, 'Value', 1:length(availableFields)));
+
+            clearAllFieldsBtn = uibutton(d1, 'Position', [180 110 120 30], ...
+                'Text', 'Clear All', ...
+                'ButtonPushedFcn', @(btn,event) set(fieldListbox, 'Value', []));
+
+            nextBtn = uibutton(d1, 'Position', [500 30 100 50], ...
+                'Text', 'Next', ...
+                'FontSize', 14, ...
+                'BackgroundColor', [0.3 0.5 0.8], ...
+                'FontColor', [1 1 1], ...
+                'ButtonPushedFcn', @(btn,event) proceedToStep2());
+
+            cancelBtn = uibutton(d1, 'Position', [380 30 100 50], ...
+                'Text', 'Cancel', ...
+                'ButtonPushedFcn', @(btn,event) close(d1));
+
+            function proceedToStep2()
+                selectedFieldIdx = fieldListbox.Value;
+                if isempty(selectedFieldIdx)
+                    uialert(d1, 'Please select at least one field.', 'No Fields Selected');
+                    return;
+                end
+
+                selectedFields = availableFields(selectedFieldIdx);
+                close(d1);
+
+                % STEP 2: Parse events using selected fields
+                discovery = struct();
+                discovery.groupingFields = selectedFields;
+                discovery.practicePatterns = {};
+                discovery.valueMappings = struct();  % Required by parseEventUniversal
+
+                allEvents = {};
+                for i = 1:length(EEG.event)
+                    if isfield(EEG.event(i), 'type')
+                        condLabel = parseEventUniversal(EEG.event(i), structure, discovery, selectedFields);
+                        if ~isempty(condLabel)
+                            allEvents{end+1} = condLabel;
+                        end
+                    end
+                end
+
+                uniqueEvents = unique(allEvents);
+
+                if isempty(uniqueEvents)
+                    uialert(app.UIFigure, 'No events found with selected fields.', 'No Events');
+                    return;
+                end
+
+                % Count trials per event
+                eventCounts = zeros(length(uniqueEvents), 1);
+                for i = 1:length(uniqueEvents)
+                    eventCounts(i) = sum(strcmp(allEvents, uniqueEvents{i}));
+                end
+
+                % STEP 2 DIALOG: Select events
+                d2 = uifigure('Name', 'Step 2: Select Events', 'Position', [100 100 700 600]);
+
+                titleLabel2 = uilabel(d2, 'Position', [50 550 600 30], ...
+                    'Text', 'Step 2: Select which events to analyze', ...
+                    'FontSize', 16, 'FontWeight', 'bold');
+
+                infoLabel2 = uilabel(d2, 'Position', [50 520 600 20], ...
+                    'Text', sprintf('Grouped by: %s | Found %d event types', strjoin(selectedFields, ', '), length(uniqueEvents)), ...
+                    'FontSize', 11, 'FontColor', [0.5 0.5 0.5]);
+
+                % Create list with counts
+                displayList = cell(length(uniqueEvents), 1);
+                for i = 1:length(uniqueEvents)
+                    displayList{i} = sprintf('%s (%d trials)', uniqueEvents{i}, eventCounts(i));
+                end
+
+                eventListbox = uilistbox(d2, 'Position', [50 150 600 350], ...
+                    'Items', displayList, ...
+                    'ItemsData', 1:length(uniqueEvents), ...
+                    'Multiselect', 'on', ...
+                    'Value', 1:length(uniqueEvents));  % All selected by default
+
+                selectAllEventsBtn = uibutton(d2, 'Position', [50 110 120 30], ...
+                    'Text', 'Select All', ...
+                    'ButtonPushedFcn', @(btn,event) set(eventListbox, 'Value', 1:length(uniqueEvents)));
+
+                clearAllEventsBtn = uibutton(d2, 'Position', [180 110 120 30], ...
+                    'Text', 'Clear All', ...
+                    'ButtonPushedFcn', @(btn,event) set(eventListbox, 'Value', []));
+
+                backBtn = uibutton(d2, 'Position', [260 30 100 50], ...
+                    'Text', 'Back', ...
+                    'ButtonPushedFcn', @(btn,event) goBack());
+
+                okBtn = uibutton(d2, 'Position', [500 30 100 50], ...
+                    'Text', 'OK', ...
+                    'FontSize', 14, ...
+                    'BackgroundColor', [0.2 0.7 0.3], ...
+                    'FontColor', [1 1 1], ...
+                    'ButtonPushedFcn', @(btn,event) confirmSelection());
+
+                cancelBtn2 = uibutton(d2, 'Position', [380 30 100 50], ...
+                    'Text', 'Cancel', ...
+                    'ButtonPushedFcn', @(btn,event) close(d2));
+
+                function goBack()
+                    close(d2);
+                    selectEventsManually(app);  % Restart from step 1
+                end
+
+                function confirmSelection()
+                    selectedEventIdx = eventListbox.Value;
+                    if isempty(selectedEventIdx)
+                        uialert(d2, 'Please select at least one event type.', 'No Selection');
+                        return;
+                    end
+
+                    app.SelectedEvents = uniqueEvents(selectedEventIdx);
+                    app.SelectedFields = selectedFields;  % Store the grouping fields!
+                    app.EventSelectionLabel.Text = sprintf('%d events from %d fields', length(app.SelectedEvents), length(selectedFields));
+                    app.EventSelectionLabel.FontColor = [0.2 0.6 0.3];
+                    app.StartButton.Enable = 'on';
+                    close(d2);
+                end
+
+                uiwait(d2);
+            end
+
+            uiwait(d1);
+        end
+
+        function startAnalysis(app)
+            % Simple validation
+            if isempty(app.SelectedEvents)
+                uialert(app.UIFigure, 'Please select events first.', 'No Events');
                 return;
             end
 
@@ -497,9 +696,7 @@ classdef JuanAnalyzer < matlab.apps.AppBase
         end
 
         function processEEG(app)
-            % Run the full analysis pipeline - EXACT preprocessing from launchEEGAnalyzer
-
-            provider = app.ProviderDropdown.Value;
+            % Run the full analysis pipeline with manual event selection
 
             % Stage 1: Loading Data
             updateProgress(app, 1, 'Loading Data...');
@@ -632,19 +829,27 @@ classdef JuanAnalyzer < matlab.apps.AppBase
                 end
             end
 
-            % Stage 5: AI Event Detection
-            updateProgress(app, 5, sprintf('🤖 AI-Powered Event Detection (%s)...', upper(provider)));
-            [selectedEvents, structure, discovery] = autoSelectTrialEventsUniversal(EEG, ...
-                'UseAI', 'always', ...
-                'AIProvider', provider, ...
-                'ExcludePractice', true, ...
-                'Display', false);
+            % Stage 5: Using Manual Event Selection
+            updateProgress(app, 5, 'Using Manually Selected Events...');
+            selectedEvents = app.SelectedEvents;
+
+            % Detect structure for epoching
+            structure = detectEventStructure(EEG);
+            discovery = struct();
+            discovery.groupingFields = app.SelectedFields;  % Use the selected fields from Step 1
+            discovery.practicePatterns = {};
+            discovery.valueMappings = struct();
+
+            fprintf('Manual event selection: %d event types\n', length(selectedEvents));
+            for i = 1:length(selectedEvents)
+                fprintf('  - %s\n', selectedEvents{i});
+            end
 
             % Stage 6: Extracting Epochs
             updateProgress(app, 6, 'Extracting Epochs and Computing ERPs...');
             timeWindow = [-0.2, 0.8];
             epochedData = epochEEGByEventsUniversal(EEG, selectedEvents, timeWindow, ...
-                structure, discovery, discovery.groupingFields);
+                structure, discovery, app.SelectedFields);
 
             % Stage 7: ERP Component Analysis
             updateProgress(app, 7, 'Analyzing ERP Components (N250, N400, P600)...');
